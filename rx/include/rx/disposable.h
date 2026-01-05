@@ -17,7 +17,7 @@ struct Disposable
 
     virtual void dispose() = 0;
 
-    virtual bool isDisposed() = 0;
+    virtual bool isDisposed() const = 0;
 };
 
 using DisposablePtr = std::shared_ptr<Disposable>;

@@ -22,20 +22,22 @@ struct Observer
 
     virtual void onError(const GAnyException &e) = 0;
 
-    virtual void onCompleted() = 0;
+    virtual void onComplete() = 0;
 };
+
+using ObserverPtr = std::shared_ptr<Observer>;
+
 
 using OnSubscribeAction = std::function<void(const DisposablePtr &d)>;
 using OnNextAction = std::function<void(const GAny &value)>;
 using OnErrorAction = std::function<void(const GAnyException &e)>;
-using OnCompletedAction = std::function<void()>;
+using OnCompleteAction = std::function<void()>;
 
-
-struct CallbackObserver : public Observer
+struct CallbackObserver : Observer
 {
     OnSubscribeAction onSubscribeAction;
     OnNextAction onNextAction;
-    OnCompletedAction onCompletedAction;
+    OnCompleteAction onCompleteAction;
     OnErrorAction onErrorAction;
 
     ~CallbackObserver() override;
@@ -61,10 +63,10 @@ struct CallbackObserver : public Observer
         }
     }
 
-    void onCompleted() override
+    void onComplete() override
     {
-        if (onCompletedAction) {
-            onCompletedAction();
+        if (onCompleteAction) {
+            onCompleteAction();
         }
     }
 };
