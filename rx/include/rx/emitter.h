@@ -19,7 +19,7 @@ struct Emitter
 
     virtual void onError(const GAnyException &e) = 0;
 
-    virtual void onCompleted() = 0;
+    virtual void onComplete() = 0;
 };
 
 

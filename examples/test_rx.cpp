@@ -23,11 +23,25 @@ int main(int argc, char **argv)
     initGAnyCore();
 
     Observable::create([](const ObservableEmitterPtr &emitter) {
-        emitter->onNext(123);
-        emitter->onCompleted();
-    })
-    ->subscribe([](const GAny &v) {
-       Log(">>>>> {}", v.toInt32());
-    });
+                emitter->onNext(123);
+                emitter->onNext("234");
+                // throw GAnyException("Error");
+                emitter->onError(GAnyException("Error"));
+                emitter->onNext(345);
+                emitter->onComplete();
+            })
+            ->subscribe([](const GAny &v) {
+                            Log(">>>>> {}", v.toString());
+                        }, [](const GAnyException &e) {
+                            LogE("Exception: {}", e.toString());
+                        }, []() {
+                            Log("Completed!!");
+                        });
+
+    Observable::just("Hello")
+            ->subscribe([](const GAny &v) {
+                Log("Just output: {}", v.toString());
+            });
+
     return EXIT_SUCCESS;
 }

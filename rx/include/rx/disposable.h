@@ -26,11 +26,11 @@ using DisposablePtr = std::shared_ptr<Disposable>;
 class AtomicDisposable : public Disposable
 {
 public:
-    ~AtomicDisposable() override;
+    ~AtomicDisposable() override = default;
 
     void dispose() override
     {
-        mDisposed.store(mDisposed, std::memory_order_release);
+        mDisposed.store(true, std::memory_order_release);
     }
 
     bool isDisposed() const override

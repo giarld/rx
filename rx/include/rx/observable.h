@@ -22,6 +22,8 @@ public:
 public:
     static std::shared_ptr<Observable> create(ObservableOnSubscribe source);
 
+    static std::shared_ptr<Observable> just(const GAny &value);
+
 public:
     void subscribe(const ObserverPtr &observer) override;
 

@@ -4,6 +4,7 @@
 
 #include "rx/observable.h"
 #include "rx/sources/observable_create.h"
+#include "rx/sources/observable_just.h"
 
 
 namespace rx
@@ -11,6 +12,11 @@ namespace rx
 std::shared_ptr<Observable> Observable::create(ObservableOnSubscribe source)
 {
     return std::make_shared<ObservableCreate>(std::move(source));
+}
+
+std::shared_ptr<Observable> Observable::just(const GAny &value)
+{
+    return std::make_shared<ObservableJust>(value);
 }
 
 void Observable::subscribe(const ObserverPtr &observer)

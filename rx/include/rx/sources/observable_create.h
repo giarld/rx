@@ -15,7 +15,7 @@ class CreateEmitter : public ObservableEmitter, public Disposable
 {
 public:
     explicit CreateEmitter(Observer *observer)
-        : mObserver(observer)
+        : mObserver(observer), mDisposable(std::make_shared<AtomicDisposable>())
     {
     }
 
@@ -44,7 +44,7 @@ public:
         }
     }
 
-    void onCompleted() override
+    void onComplete() override
     {
         if (!isDisposed()) {
             try {

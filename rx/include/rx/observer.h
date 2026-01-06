@@ -49,7 +49,7 @@ public:
     {
     }
 
-    ~LambdaObserver() override;
+    ~LambdaObserver() override = default;
 
     void onSubscribe(const DisposablePtr &d) override
     {
