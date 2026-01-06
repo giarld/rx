@@ -33,42 +33,93 @@ using OnNextAction = std::function<void(const GAny &value)>;
 using OnErrorAction = std::function<void(const GAnyException &e)>;
 using OnCompleteAction = std::function<void()>;
 
-struct CallbackObserver : Observer
-{
-    OnSubscribeAction onSubscribeAction;
-    OnNextAction onNextAction;
-    OnCompleteAction onCompleteAction;
-    OnErrorAction onErrorAction;
 
-    ~CallbackObserver() override;
+class LambdaObserver : public Observer, public Disposable
+{
+public:
+    explicit LambdaObserver(const OnNextAction &next,
+                            const OnErrorAction &error,
+                            const OnCompleteAction &complete,
+                            const OnSubscribeAction &subscribe)
+        : mOnNextAction(next),
+          mOnCompleteAction(complete),
+          mOnErrorAction(error),
+          mOnSubscribeAction(subscribe),
+          mDisposable(std::make_shared<AtomicDisposable>())
+    {
+    }
+
+    ~LambdaObserver() override;
 
     void onSubscribe(const DisposablePtr &d) override
     {
-        if (onSubscribeAction) {
-            onSubscribeAction(d);
+        mDisposable = d;
+        if (mOnSubscribeAction) {
+            try {
+                mOnSubscribeAction(d);
+            } catch (GAnyException e) {
+                d->dispose();
+                onError(e);
+            }
         }
     }
 
     void onNext(const GAny &value) override
     {
-        if (onNextAction) {
-            onNextAction(value);
+        if (!isDisposed()) {
+            if (mOnNextAction) {
+                try {
+                    mOnNextAction(value);
+                } catch (GAnyException e) {
+                    dispose();
+                    onError(e);
+                }
+            }
         }
     }
 
     void onError(const GAnyException &e) override
     {
-        if (onErrorAction) {
-            onErrorAction(e);
+        if (!isDisposed()) {
+            mDisposable = nullptr;
+            if (mOnErrorAction) {
+                mOnErrorAction(e);
+            }
         }
     }
 
     void onComplete() override
     {
-        if (onCompleteAction) {
-            onCompleteAction();
+        if (!isDisposed()) {
+            mDisposable = nullptr;
+            if (mOnCompleteAction) {
+                mOnCompleteAction();
+            }
         }
     }
+
+    void dispose() override
+    {
+        if (const auto d = mDisposable) {
+            d->dispose();
+        }
+    }
+
+    bool isDisposed() const override
+    {
+        if (const auto d = mDisposable) {
+            return d->isDisposed();
+        }
+        return false;
+    }
+
+private:
+    OnNextAction mOnNextAction;
+    OnCompleteAction mOnCompleteAction;
+    OnErrorAction mOnErrorAction;
+    OnSubscribeAction mOnSubscribeAction;
+
+    DisposablePtr mDisposable = nullptr;
 };
 }
 

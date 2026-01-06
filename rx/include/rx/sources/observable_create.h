@@ -6,6 +6,7 @@
 #define RX_OBSERVABLE_CREATE_H
 
 #include "../observable.h"
+#include <gx/gmutex.h>
 
 
 namespace rx
@@ -56,21 +57,30 @@ public:
 
     void dispose() override
     {
-
+        if (const auto d = mDisposable) {
+            d->dispose();
+        }
     }
 
     void setDisposable(const DisposablePtr &d) override
     {
-
+        if (const auto od = mDisposable) {
+            od->dispose();
+        }
+        mDisposable = d;
     }
 
     bool isDisposed() const override
     {
+        if (const auto d = mDisposable) {
+            return d->isDisposed();
+        }
         return false;
     }
 
 private:
     Observer *mObserver;
+    DisposablePtr mDisposable = nullptr;
 };
 
 
@@ -85,7 +95,7 @@ public:
     {
     }
 
-public:
+protected:
     void subscribeActual(const ObserverPtr &observer) override
     {
         const auto parent = std::make_shared<CreateEmitter>(observer.get());

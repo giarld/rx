@@ -14,7 +14,7 @@ struct ObservableSource
 {
     virtual ~ObservableSource() = default;
 
-    virtual void subscribe(const Observer &observer) = 0;
+    virtual void subscribe(const ObserverPtr &observer) = 0;
 };
 } // rx
 

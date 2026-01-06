@@ -14,12 +14,25 @@ namespace rx
 {
 using ObservableOnSubscribe = std::function<void(const ObservableEmitterPtr &emitter)>;
 
-class Observable : public ObservableSource
+class GX_API Observable : public ObservableSource
 {
 public:
     ~Observable() override = default;
 
 public:
+    static std::shared_ptr<Observable> create(ObservableOnSubscribe source);
+
+public:
+    void subscribe(const ObserverPtr &observer) override;
+
+    DisposablePtr subscribe(const OnNextAction &next, const OnErrorAction &error, const OnCompleteAction &complete);
+
+    DisposablePtr subscribe(const OnNextAction &next)
+    {
+        return subscribe(next, nullptr, nullptr);
+    }
+
+protected:
     virtual void subscribeActual(const ObserverPtr &observer) = 0;
 };
 } // rx

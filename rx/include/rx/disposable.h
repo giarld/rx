@@ -21,6 +21,26 @@ struct Disposable
 };
 
 using DisposablePtr = std::shared_ptr<Disposable>;
+
+
+class AtomicDisposable : public Disposable
+{
+public:
+    ~AtomicDisposable() override;
+
+    void dispose() override
+    {
+        mDisposed.store(mDisposed, std::memory_order_release);
+    }
+
+    bool isDisposed() const override
+    {
+        return mDisposed.load();
+    }
+
+private:
+    std::atomic<bool> mDisposed = false;
+};
 } // rx
 
 #endif //RX_DISPOSABLE_H
