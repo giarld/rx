@@ -1,0 +1,92 @@
+//
+// Created by Gxin on 2026/1/7.
+//
+
+#ifndef RX_OBSERVABLE_MAP_H
+#define RX_OBSERVABLE_MAP_H
+
+#include "../observable.h"
+
+
+namespace rx
+{
+class MapObserver : public Observer, public AtomicDisposable
+{
+public:
+    explicit MapObserver(Observer *observer, const MapFunction &function)
+        : mObserver(observer), mFunction(function)
+    {
+    }
+
+    ~MapObserver() override = default;
+
+public:
+    void onSubscribe(const DisposablePtr &d) override
+    {
+
+    }
+
+    void onNext(const GAny &value) override
+    {
+        if (!isDisposed()) {
+            GAny r;
+            try {
+                r = mFunction(value);
+            } catch (GAnyException e) {
+                onError(e);
+                return;
+            }
+            mObserver->onNext(r);
+        }
+    }
+
+    void onError(const GAnyException &e) override
+    {
+        if (!isDisposed()) {
+            try {
+                mObserver->onError(e);
+            } catch (GAnyException _e) {
+            }
+            dispose();
+        }
+    }
+
+    void onComplete() override
+    {
+        if (!isDisposed()) {
+            try {
+                mObserver->onComplete();
+            } catch (GAnyException _e) {
+            }
+            dispose();
+        }
+    }
+
+private:
+    Observer *mObserver;
+    MapFunction mFunction;
+};
+
+class ObservableMap : public Observable
+{
+public:
+    explicit ObservableMap(std::shared_ptr<ObservableSource> source, MapFunction function)
+        : mSource(std::move(source)), mMapFunction(std::move(function))
+    {
+    }
+
+    ~ObservableMap() override = default;
+
+protected:
+    void subscribeActual(const ObserverPtr &observer) override
+    {
+        mSource->subscribe(std::make_shared<MapObserver>(observer.get(), mMapFunction));
+    }
+
+private:
+    std::shared_ptr<ObservableSource> mSource;
+    MapFunction mMapFunction;
+};
+} // rx
+
+#endif //RX_OBSERVABLE_MAP_H

@@ -22,13 +22,43 @@ int main(int argc, char **argv)
 
     initGAnyCore();
 
-    Observable::create([](const ObservableEmitterPtr &emitter) {
-                emitter->onNext(123);
-                emitter->onNext("234");
-                // throw GAnyException("Error");
-                emitter->onError(GAnyException("Error"));
-                emitter->onNext(345);
-                emitter->onComplete();
+    // Observable::create([](const ObservableEmitterPtr &emitter) {
+    //             emitter->onNext(123);
+    //             emitter->onNext("234");
+    //             // throw GAnyException("Error");
+    //             emitter->onError(GAnyException("Error"));
+    //             emitter->onNext(345);
+    //             emitter->onComplete();
+    //         })
+    //         ->subscribe([](const GAny &v) {
+    //                         Log(">>>>> {}", v.toString());
+    //                     }, [](const GAnyException &e) {
+    //                         LogE("Exception: {}", e.toString());
+    //                     }, []() {
+    //                         Log("Completed!!");
+    //                     });
+    //
+    // Observable::just("Hello")
+    //         ->subscribe([](const GAny &v) {
+    //             Log("Just output: {}", v.toString());
+    //         });
+    //
+    // Observable::empty()
+    //         ->subscribe([](const GAny &v) {
+    //                     }, [](const GAnyException &e) {
+    //                         LogE("Empty Exception: {}", e.toString());
+    //                     }, []() {
+    //                         Log("Empty Completed!!");
+    //                     });
+
+    Observable::just(10)
+            ->map([](const GAny &x) {
+                GAny v = GAny::array();
+                for (int32_t i = 0; i < x.toInt32(); ++i) {
+                    v.pushBack(i);
+                }
+                Log("Map: v = {}", v.toString());
+                return v;
             })
             ->subscribe([](const GAny &v) {
                             Log(">>>>> {}", v.toString());
@@ -37,11 +67,6 @@ int main(int argc, char **argv)
                         }, []() {
                             Log("Completed!!");
                         });
-
-    Observable::just("Hello")
-            ->subscribe([](const GAny &v) {
-                Log("Just output: {}", v.toString());
-            });
 
     return EXIT_SUCCESS;
 }

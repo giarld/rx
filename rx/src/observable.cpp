@@ -3,8 +3,10 @@
 //
 
 #include "rx/observable.h"
-#include "rx/sources/observable_create.h"
-#include "rx/sources/observable_just.h"
+#include "rx/operators/observable_create.h"
+#include "rx/operators/observable_just.h"
+#include "rx/operators/observable_empty.h"
+#include "rx/operators/observable_map.h"
 
 
 namespace rx
@@ -18,6 +20,18 @@ std::shared_ptr<Observable> Observable::just(const GAny &value)
 {
     return std::make_shared<ObservableJust>(value);
 }
+
+std::shared_ptr<Observable> Observable::empty()
+{
+    return std::make_shared<ObservableEmpty>();
+}
+
+
+std::shared_ptr<Observable> Observable::map(MapFunction function)
+{
+    return std::make_shared<ObservableMap>(this->shared_from_this(), std::move(function));
+}
+
 
 void Observable::subscribe(const ObserverPtr &observer)
 {
