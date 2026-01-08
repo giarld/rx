@@ -62,20 +62,17 @@ public:
         }
     }
 
-    void setDisposable(const DisposablePtr &d) override
-    {
-        if (const auto od = mDisposable) {
-            od->dispose();
-        }
-        mDisposable = d;
-    }
-
     bool isDisposed() const override
     {
         if (const auto d = mDisposable) {
             return d->isDisposed();
         }
         return false;
+    }
+
+    void setDisposable(const DisposablePtr &d) override
+    {
+        mDisposable = d;
     }
 
 private:

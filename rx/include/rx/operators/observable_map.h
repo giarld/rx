@@ -70,7 +70,7 @@ private:
 class ObservableMap : public Observable
 {
 public:
-    explicit ObservableMap(std::shared_ptr<ObservableSource> source, MapFunction function)
+    explicit ObservableMap(ObservableSourcePtr source, MapFunction function)
         : mSource(std::move(source)), mMapFunction(std::move(function))
     {
     }
@@ -84,7 +84,7 @@ protected:
     }
 
 private:
-    std::shared_ptr<ObservableSource> mSource;
+    ObservableSourcePtr mSource;
     MapFunction mMapFunction;
 };
 } // rx

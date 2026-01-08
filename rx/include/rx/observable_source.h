@@ -16,6 +16,8 @@ struct ObservableSource
 
     virtual void subscribe(const ObserverPtr &observer) = 0;
 };
+
+using ObservableSourcePtr = std::shared_ptr<ObservableSource>;
 } // rx
 
 #endif //RX_OBSERVABLE_SOURCE_H
