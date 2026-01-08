@@ -8,6 +8,7 @@
 #include "observer.h"
 #include "observable_source.h"
 #include "emitter.h"
+#include "scheduler.h"
 
 
 namespace rx
@@ -29,6 +30,9 @@ public:
 
 
     std::shared_ptr<Observable> map(MapFunction function);
+
+
+    std::shared_ptr<Observable> subscribeOn(SchedulerPtr scheduler);
 
 public:
     void subscribe(const ObserverPtr &observer) override;

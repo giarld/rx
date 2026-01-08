@@ -79,8 +79,13 @@ public:
 protected:
     void subscribeActual(const ObserverPtr &observer) override
     {
-        // auto parent = std::make_shared<SubscribeOnObserver>(observer.get());
-        // observer->onSubscribe(parent);
+        const auto parent = std::make_shared<SubscribeOnObserver>(observer.get());
+        observer->onSubscribe(parent);
+
+        const auto source = mSource;
+        parent->setDisposable(mScheduler->scheduleDirect([source, parent] {
+            source->subscribe(parent);
+        }));
     }
 
 private:
