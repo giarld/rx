@@ -5,7 +5,7 @@
 #ifndef RX_SCHEDULERS_H
 #define RX_SCHEDULERS_H
 
-#include "schedulers/new_thread_worker.h"
+#include "schedulers/new_thread_scheduler.h"
 
 
 namespace rx

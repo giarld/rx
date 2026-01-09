@@ -14,7 +14,7 @@ namespace rx
 class CreateEmitter : public ObservableEmitter, public Disposable
 {
 public:
-    explicit CreateEmitter(Observer *observer)
+    explicit CreateEmitter(const ObserverPtr &observer)
         : mObserver(observer), mDisposable(std::make_shared<AtomicDisposable>())
     {
     }
@@ -76,7 +76,7 @@ public:
     }
 
 private:
-    Observer *mObserver;
+    ObserverPtr mObserver;
     DisposablePtr mDisposable = nullptr;
 };
 
@@ -95,7 +95,7 @@ public:
 protected:
     void subscribeActual(const ObserverPtr &observer) override
     {
-        const auto parent = std::make_shared<CreateEmitter>(observer.get());
+        const auto parent = std::make_shared<CreateEmitter>(observer);
         observer->onSubscribe(parent);
 
         try {

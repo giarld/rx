@@ -22,21 +22,29 @@ int main(int argc, char **argv)
 
     initGAnyCore();
 
-    // Observable::create([](const ObservableEmitterPtr &emitter) {
-    //             emitter->onNext(123);
-    //             emitter->onNext("234");
-    //             // throw GAnyException("Error");
-    //             emitter->onError(GAnyException("Error"));
-    //             emitter->onNext(345);
-    //             emitter->onComplete();
-    //         })
-    //         ->subscribe([](const GAny &v) {
-    //                         Log(">>>>> {}", v.toString());
-    //                     }, [](const GAnyException &e) {
-    //                         LogE("Exception: {}", e.toString());
-    //                     }, []() {
-    //                         Log("Completed!!");
-    //                     });
+    {
+        auto scheduler = std::make_shared<NewThreadScheduler>();
+        Observable::create([](const ObservableEmitterPtr &emitter) {
+                    // GThread::sleep(2);
+                    emitter->onNext(123);
+                    emitter->onNext("234");
+                    // throw GAnyException("Error");
+                    // emitter->onError(GAnyException("Error"));
+                    emitter->onNext(345);
+                    emitter->onComplete();
+                })
+                ->subscribeOn(scheduler)
+                ->subscribe([](const GAny &v) {
+                                Log(">>>>> {}", v.toString());
+                            }, [](const GAnyException &e) {
+                                LogE("Exception: {}", e.toString());
+                            }, []() {
+                                Log("Completed!!");
+                            });
+    }
+
+    GThread::sleep(2);
+
     //
     // Observable::just("Hello")
     //         ->subscribe([](const GAny &v) {
@@ -51,22 +59,22 @@ int main(int argc, char **argv)
     //                         Log("Empty Completed!!");
     //                     });
 
-    Observable::just(10)
-            ->map([](const GAny &x) {
-                GAny v = GAny::array();
-                for (int32_t i = 0; i < x.toInt32(); ++i) {
-                    v.pushBack(i);
-                }
-                Log("Map: v = {}", v.toString());
-                return v;
-            })
-            ->subscribe([](const GAny &v) {
-                            Log(">>>>> {}", v.toString());
-                        }, [](const GAnyException &e) {
-                            LogE("Exception: {}", e.toString());
-                        }, []() {
-                            Log("Completed!!");
-                        });
+    // Observable::just(10)
+    //         ->map([](const GAny &x) {
+    //             GAny v = GAny::array();
+    //             for (int32_t i = 0; i < x.toInt32(); ++i) {
+    //                 v.pushBack(i);
+    //             }
+    //             Log("Map: v = {}", v.toString());
+    //             return v;
+    //         })
+    //         ->subscribe([](const GAny &v) {
+    //                         Log(">>>>> {}", v.toString());
+    //                     }, [](const GAnyException &e) {
+    //                         LogE("Exception: {}", e.toString());
+    //                     }, []() {
+    //                         Log("Completed!!");
+    //                     });
 
     return EXIT_SUCCESS;
 }

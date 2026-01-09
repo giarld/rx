@@ -40,31 +40,16 @@ using WorkerPtr = std::shared_ptr<Worker>;
 class DisposeTask : public Disposable
 {
 public:
-    explicit DisposeTask(const WorkerRunnable &run, const WorkerPtr &worker)
-        : mDecoratedRun(run), mWorker(worker)
+    explicit DisposeTask(const WorkerPtr &worker)
+        : mWorker(worker)
     {
     }
 
     ~DisposeTask() override = default;
 
 public:
-    void run()
-    {
-        mRunner = GThread::currentThreadId();
-        mDecoratedRun();
-        dispose();
-
-        mRunner = {};
-    }
-
-    WorkerRunnable getWorkerRunnable() const
-    {
-        return mDecoratedRun;
-    }
-
     void dispose() override
     {
-        // TODO: NewThreadWorker
         mWorker->dispose();
     }
 
@@ -74,10 +59,7 @@ public:
     }
 
 private:
-    WorkerRunnable mDecoratedRun;
     WorkerPtr mWorker;
-
-    GThread::ThreadIdType mRunner;
 };
 
 using DisposeTaskPtr = std::shared_ptr<DisposeTask>;
@@ -104,10 +86,10 @@ public:
     virtual DisposablePtr scheduleDirect(WorkerRunnable run, uint64_t delay)
     {
         WorkerPtr w = createWorker();
-        DisposeTaskPtr task = std::make_shared<DisposeTask>(run, w);
+        DisposeTaskPtr task = std::make_shared<DisposeTask>(w);
 
-        w->schedule([task] {
-            task->run();
+        w->schedule([run] {
+            run();
         }, delay);
 
         return task;

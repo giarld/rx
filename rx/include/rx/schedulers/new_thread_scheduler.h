@@ -13,16 +13,12 @@ namespace rx
 class NewThreadScheduler : public Scheduler
 {
 public:
-    explicit NewThreadScheduler()
-    {
-    }
-
-    explicit NewThreadScheduler(ThreadPriority threadPriority)
+    explicit NewThreadScheduler(ThreadPriority threadPriority = ThreadPriority::Normal)
         : mThreadPriority(threadPriority)
     {
     }
 
-    ~NewThreadScheduler() override;
+    ~NewThreadScheduler() override = default;
 
 public:
     WorkerPtr createWorker() override

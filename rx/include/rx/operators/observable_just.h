@@ -21,7 +21,7 @@ public:
     };
 
 public:
-    explicit JustDisposable(Observer *observer, const GAny &value)
+    explicit JustDisposable(const ObserverPtr &observer, const GAny &value)
         : mObserver(observer), mValue(value)
     {
     }
@@ -52,7 +52,7 @@ public:
     }
 
 private:
-    Observer *mObserver;
+    ObserverPtr mObserver;
     GAny mValue;
 
     std::atomic<uint32_t> mState = State::Start;
@@ -71,7 +71,7 @@ public:
 protected:
     void subscribeActual(const ObserverPtr &observer) override
     {
-        const auto disposable = std::make_shared<JustDisposable>(observer.get(), mValue);
+        const auto disposable = std::make_shared<JustDisposable>(observer, mValue);
         observer->onSubscribe(disposable);
 
         disposable->run();

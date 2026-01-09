@@ -13,7 +13,7 @@ namespace rx
 class MapObserver : public Observer, public AtomicDisposable
 {
 public:
-    explicit MapObserver(Observer *observer, const MapFunction &function)
+    explicit MapObserver(const ObserverPtr &observer, const MapFunction &function)
         : mObserver(observer), mFunction(function)
     {
     }
@@ -63,7 +63,7 @@ public:
     }
 
 private:
-    Observer *mObserver;
+    ObserverPtr mObserver;
     MapFunction mFunction;
 };
 
@@ -80,7 +80,7 @@ public:
 protected:
     void subscribeActual(const ObserverPtr &observer) override
     {
-        mSource->subscribe(std::make_shared<MapObserver>(observer.get(), mMapFunction));
+        mSource->subscribe(std::make_shared<MapObserver>(observer, mMapFunction));
     }
 
 private:

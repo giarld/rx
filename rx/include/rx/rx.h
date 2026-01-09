@@ -7,5 +7,6 @@
 
 #include "observer.h"
 #include "observable.h"
+#include "schedulers.h"
 
 #endif //RX_RX_H

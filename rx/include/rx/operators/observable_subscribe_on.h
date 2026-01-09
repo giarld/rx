@@ -14,7 +14,7 @@ namespace rx
 class SubscribeOnObserver : public Observer, public Disposable
 {
 public:
-    explicit SubscribeOnObserver(Observer *observer)
+    explicit SubscribeOnObserver(const ObserverPtr &observer)
         : mObserver(observer), mDisposable(std::make_shared<AtomicDisposable>())
     {
     }
@@ -62,15 +62,15 @@ public:
     }
 
 private:
-    Observer *mObserver;
+    ObserverPtr mObserver;
     DisposablePtr mDisposable;
 };
 
 class ObservableSubscribeOn : public Observable
 {
 public:
-    explicit ObservableSubscribeOn(ObservableSourcePtr source, SchedulerPtr scheduler)
-        : mSource(std::move(source)), mScheduler(std::move(scheduler))
+    explicit ObservableSubscribeOn(const ObservableSourcePtr &source, SchedulerPtr scheduler)
+        : mSource(source), mScheduler(std::move(scheduler))
     {
     }
 
@@ -79,7 +79,7 @@ public:
 protected:
     void subscribeActual(const ObserverPtr &observer) override
     {
-        const auto parent = std::make_shared<SubscribeOnObserver>(observer.get());
+        const auto parent = std::make_shared<SubscribeOnObserver>(observer);
         observer->onSubscribe(parent);
 
         const auto source = mSource;
