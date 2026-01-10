@@ -20,10 +20,7 @@ public:
     {
     }
 
-    ~ObserveOnObserver() override
-    {
-        Log("~ObserveOnObserver");
-    }
+    ~ObserveOnObserver() override = default;
 
 public:
     void onSubscribe(const DisposablePtr &d) override
@@ -41,18 +38,11 @@ public:
             return;
         }
 
-        uint64_t idx = mTaskIdx.fetch_add(1);
         auto d = mDownstream;
         std::weak_ptr<ObserveOnObserver> weakThiz = this->shared_from_this();
-        const auto t = mWorker->schedule([weakThiz, d, value, idx] {
+        const auto t = mWorker->schedule([d, value] {
             d->onNext(value);
-            if (const auto thiz = weakThiz.lock()) {
-                thiz->releaseTask(idx);
-            }
         });
-        mTasksLock.lock();
-        mTasks[idx] = t;
-        mTasksLock.unlock();
     }
 
     void onError(const GAnyException &e) override
@@ -61,20 +51,16 @@ public:
             return;
         }
 
-        uint64_t idx = mTaskIdx.fetch_add(1);
+        mDone.store(true, std::memory_order_release);
+
         auto d = mDownstream;
         std::weak_ptr<ObserveOnObserver> weakThiz = this->shared_from_this();
-        const auto t = mWorker->schedule([weakThiz, d, e, idx] {
+        const auto t = mWorker->schedule([weakThiz, d, e] {
             d->onError(e);
             if (const auto thiz = weakThiz.lock()) {
-                thiz->releaseTask(idx);
+                thiz->dispose();
             }
         });
-        mTasksLock.lock();
-        mTasks[idx] = t;
-        mTasksLock.unlock();
-
-        mDone.store(true, std::memory_order_release);
     }
 
     void onComplete() override
@@ -83,30 +69,29 @@ public:
             return;
         }
 
-        uint64_t idx = mTaskIdx.fetch_add(1);
+        mDone.store(true, std::memory_order_release);
+
         auto d = mDownstream;
         std::weak_ptr<ObserveOnObserver> weakThiz = this->shared_from_this();
-        const auto t = mWorker->schedule([weakThiz, d, idx] {
+        const auto t = mWorker->schedule([weakThiz, d] {
             d->onComplete();
             if (const auto thiz = weakThiz.lock()) {
-                thiz->releaseTask(idx);
+                thiz->dispose();
             }
         });
-        mTasksLock.lock();
-        mTasks[idx] = t;
-        mTasksLock.unlock();
-
-        mDone.store(true, std::memory_order_release);
     }
 
     void dispose() override
     {
-        if (!mDisposed.load()) {
-            mDisposed.store(true, std::memory_order_release);
-            mUpstream->dispose();
-            mWorker->dispose();
+        if (!mDisposed.exchange(true, std::memory_order_release)) {
+            if (const auto up = mUpstream) {
+                up->dispose();
+                mUpstream = nullptr;
+            }
 
-            mTasks.clear();
+            if (mWorker) {
+                mWorker->dispose();
+            }
         }
     }
 
@@ -116,13 +101,6 @@ public:
     }
 
 private:
-    void releaseTask(uint64_t idx)
-    {
-        mTasksLock.lock();
-        mTasks.erase(idx);
-        mTasksLock.unlock();
-    }
-
     static bool validate(const DisposablePtr &current, const DisposablePtr &next)
     {
         if (next == nullptr) {
@@ -141,10 +119,6 @@ private:
     DisposablePtr mUpstream = nullptr;
     std::atomic<bool> mDone = false;
     std::atomic<bool> mDisposed = false;
-
-    std::map<uint64_t, DisposablePtr> mTasks;
-    GMutex mTasksLock;
-    std::atomic<uint64_t> mTaskIdx = 0;
 };
 
 class ObservableObserveOn : public Observable

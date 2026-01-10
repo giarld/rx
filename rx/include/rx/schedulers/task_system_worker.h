@@ -38,21 +38,13 @@ public:
 
     DisposablePtr schedule(const WorkerRunnable &run, uint64_t delay) override
     {
-        if (mDisposed) {
-            return EmptyDisposable::instance();
+        if (!mDisposed) {
+            mTaskSystem->submit([run] {
+                run();
+                return true;
+            });
         }
-        return scheduleDirect(run, delay);
-    }
-
-    DisposablePtr scheduleDirect(const WorkerRunnable &run, uint64_t)
-    {
-        auto future = mTaskSystem->submit([run] {
-            run();
-            return true;
-        });
-        auto task = std::make_shared<ScheduledDirectTask>(std::move(future));
-
-        return task;
+        return EmptyDisposable::instance();
     }
 
 private:

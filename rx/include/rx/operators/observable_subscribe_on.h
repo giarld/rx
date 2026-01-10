@@ -46,9 +46,11 @@ public:
     {
         if (const auto d = mDisposable) {
             d->dispose();
+            mDisposable = nullptr;
         }
         if (const auto d = mUpstream) {
             d->dispose();
+            mUpstream = nullptr;
         }
     }
 

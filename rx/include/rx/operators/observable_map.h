@@ -62,7 +62,10 @@ public:
 
     void dispose() override
     {
-        mUpstream->dispose();
+        if (mUpstream) {
+            mUpstream->dispose();
+            mUpstream = nullptr; // 最佳实践：总是打断上游引用
+        }
     }
 
     bool isDisposed() const override

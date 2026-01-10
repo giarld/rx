@@ -36,12 +36,12 @@ public:
 
     DisposablePtr schedule(const WorkerRunnable &run, uint64_t delay) override
     {
-        if (mDisposed) {
-            return EmptyDisposable::instance();
+        if (!mDisposed) {
+            mTimerScheduler->post([run] {
+                run();
+            }, delay);
         }
-        auto task = std::make_shared<ScheduledDirectTimer>(mTimerScheduler, run);
-        task->start(delay);
-        return task;
+        return EmptyDisposable::instance();
     }
 
 private:
