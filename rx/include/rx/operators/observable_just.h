@@ -13,16 +13,8 @@ namespace rx
 class JustDisposable : public Disposable
 {
 public:
-    enum State : uint32_t
-    {
-        Start,
-        OnNext,
-        OnComplete
-    };
-
-public:
     explicit JustDisposable(const ObserverPtr &observer, const GAny &value)
-        : mObserver(observer), mValue(value)
+        : mDownstream(observer), mValue(value)
     {
     }
 
@@ -31,33 +23,28 @@ public:
 public:
     void dispose() override
     {
-        mState.store(State::OnComplete, std::memory_order_release);
+        mDisposed.store(true, std::memory_order_release);
     }
 
     bool isDisposed() const override
     {
-        return mState.load() == State::OnComplete;
+        return mDisposed.load();
     }
 
-    void run()
+    void run() const
     {
-        uint32_t expected = State::Start;
-        if (mState.compare_exchange_strong(expected, State::OnNext)) {
-            if (const auto o = mObserver.lock()) {
+        if (!isDisposed()) {
+            if (const auto o = mDownstream.lock()) {
                 o->onNext(mValue);
-                expected = State::OnNext;
-                if (mState.compare_exchange_strong(expected, State::OnComplete)) {
-                    o->onComplete();
-                }
+                o->onComplete();
             }
         }
     }
 
 private:
-    std::weak_ptr<Observer> mObserver;
+    std::weak_ptr<Observer> mDownstream;
     GAny mValue;
-
-    std::atomic<uint32_t> mState = State::Start;
+    std::atomic<bool> mDisposed = false;
 };
 
 class ObservableJust : public Observable
@@ -75,7 +62,6 @@ protected:
     {
         const auto disposable = std::make_shared<JustDisposable>(observer, mValue);
         observer->onSubscribe(disposable);
-
         disposable->run();
     }
 

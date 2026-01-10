@@ -1,0 +1,74 @@
+//
+// Created by Gxin on 2026/1/10.
+//
+
+#ifndef RX_OBSERVABLE_INTERVAL_H
+#define RX_OBSERVABLE_INTERVAL_H
+
+#include "../observable.h"
+
+#include "gx/gtimer.h"
+
+
+namespace rx
+{
+class IntervalObserver : public AtomicDisposable, public GTimer
+{
+public:
+    explicit IntervalObserver(const ObserverPtr &observer)
+        : mDownstream(observer)
+    {
+    }
+
+    ~IntervalObserver() override = default;
+
+public:
+    void timeout() override
+    {
+        if (!isDisposed()) {
+            mDownstream->onNext(mCount++);
+        }
+    }
+
+    bool condition() override
+    {
+        return !isDisposed();
+    }
+
+    void dispose() override
+    {
+        AtomicDisposable::dispose();
+        mDownstream = nullptr;
+    }
+
+private:
+    ObserverPtr mDownstream;
+    GTimer mTimer;
+    uint64_t mCount = 0;
+};
+
+class ObservableInterval : public Observable
+{
+public:
+    explicit ObservableInterval(uint64_t delay, uint64_t interval)
+        : mDelay(delay), mInterval(interval)
+    {
+    }
+
+    ~ObservableInterval() override = default;
+
+protected:
+    void subscribeActual(const ObserverPtr &observer) override
+    {
+        const auto parent = std::make_shared<IntervalObserver>(observer);
+        observer->onSubscribe(parent);
+        parent->start(mDelay, mInterval);
+    }
+
+private:
+    uint64_t mDelay;
+    uint64_t mInterval;
+};
+} // rx
+
+#endif //RX_OBSERVABLE_INTERVAL_H

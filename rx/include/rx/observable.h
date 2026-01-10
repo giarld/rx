@@ -24,9 +24,44 @@ public:
 public:
     static std::shared_ptr<Observable> create(ObservableOnSubscribe source);
 
+    static std::shared_ptr<Observable> empty();
+
     static std::shared_ptr<Observable> just(const GAny &value);
 
-    static std::shared_ptr<Observable> empty();
+    static std::shared_ptr<Observable> just(const GAny &item1, const GAny &item2);
+
+    static std::shared_ptr<Observable> just(const GAny &item1, const GAny &item2, const GAny &item3);
+
+    static std::shared_ptr<Observable> just(const GAny &item1, const GAny &item2, const GAny &item3, const GAny &item4);
+
+    static std::shared_ptr<Observable> just(const GAny &item1, const GAny &item2, const GAny &item3, const GAny &item4, const GAny &item5);
+
+    static std::shared_ptr<Observable> just(const GAny &item1, const GAny &item2, const GAny &item3, const GAny &item4, const GAny &item5,
+                                            const GAny &item6);
+
+    static std::shared_ptr<Observable> just(const GAny &item1, const GAny &item2, const GAny &item3, const GAny &item4, const GAny &item5,
+                                            const GAny &item6, const GAny &item7);
+
+    static std::shared_ptr<Observable> just(const GAny &item1, const GAny &item2, const GAny &item3, const GAny &item4, const GAny &item5,
+                                            const GAny &item6, const GAny &item7, const GAny &item8);
+
+    static std::shared_ptr<Observable> just(const GAny &item1, const GAny &item2, const GAny &item3, const GAny &item4, const GAny &item5,
+                                            const GAny &item6, const GAny &item7, const GAny &item8, const GAny &item9);
+
+    static std::shared_ptr<Observable> just(const GAny &item1, const GAny &item2, const GAny &item3, const GAny &item4, const GAny &item5,
+                                            const GAny &item6, const GAny &item7, const GAny &item8, const GAny &item9, const GAny &item10);
+
+    static std::shared_ptr<Observable> fromArray(const std::vector<GAny> &array);
+
+    static std::shared_ptr<Observable> never();
+
+    static std::shared_ptr<Observable> error(const GAnyException &e);
+
+    static std::shared_ptr<Observable> defer(const ObservableSourcePtr &source);
+
+    static std::shared_ptr<Observable> interval(uint64_t delay, uint64_t interval);
+
+    static std::shared_ptr<Observable> timer(uint64_t delay);
 
 
     std::shared_ptr<Observable> map(MapFunction function);

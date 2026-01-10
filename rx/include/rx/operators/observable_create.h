@@ -15,7 +15,7 @@ class CreateEmitter : public ObservableEmitter, public Disposable
 {
 public:
     explicit CreateEmitter(const ObserverPtr &observer)
-        : mObserver(observer), mDisposable(std::make_shared<AtomicDisposable>())
+        : mDownstream(observer), mDisposable(std::make_shared<AtomicDisposable>())
     {
     }
 
@@ -24,12 +24,12 @@ public:
 public:
     void onNext(const GAny &value) override
     {
-        if (!value) {
-            onError(GAnyException("onNext called with a null value."));
-            return;
-        }
+        // if (!value) {
+        //     onError(GAnyException("onNext called with a null value."));
+        //     return;
+        // }
         if (!isDisposed()) {
-            if (const auto o = mObserver.lock()) {
+            if (const auto o = mDownstream.lock()) {
                 o->onNext(value);
             }
         }
@@ -39,7 +39,7 @@ public:
     {
         if (!isDisposed()) {
             try {
-                if (const auto o = mObserver.lock()) {
+                if (const auto o = mDownstream.lock()) {
                     o->onError(e);
                 }
             } catch (GAnyException _e) {
@@ -52,7 +52,7 @@ public:
     {
         if (!isDisposed()) {
             try {
-                if (const auto o = mObserver.lock()) {
+                if (const auto o = mDownstream.lock()) {
                     o->onComplete();
                 }
             } catch (GAnyException _e) {
@@ -65,6 +65,7 @@ public:
     {
         if (const auto d = mDisposable) {
             d->dispose();
+            mDownstream.reset();
         }
     }
 
@@ -82,7 +83,7 @@ public:
     }
 
 private:
-    std::weak_ptr<Observer> mObserver;
+    std::weak_ptr<Observer> mDownstream;
     DisposablePtr mDisposable = nullptr;
 };
 

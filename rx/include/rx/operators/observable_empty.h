@@ -32,6 +32,12 @@ public:
         observer->onComplete();
     }
 
+    static void error(Observer *observer, const GAnyException &e)
+    {
+        observer->onSubscribe(instance());
+        observer->onError(e);
+    }
+
 public:
     void dispose() override
     {

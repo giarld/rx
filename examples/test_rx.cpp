@@ -28,16 +28,18 @@ int main(int argc, char **argv)
 
     auto threadScheduler = NewThreadScheduler::create();
     auto timerScheduler = MainThreadScheduler::create();
-    Observable::create([](const ObservableEmitterPtr &emitter) {
+    Observable::create([&](const ObservableEmitterPtr &emitter) {
                 emitter->onNext(123);
                 emitter->onNext("234");
                 // throw GAnyException("Error");
                 // emitter->onError(GAnyException("Error"));
-                emitter->onNext(345);
-                emitter->onComplete();
+                mainScheduler->post([emitter] {
+                    emitter->onNext(345);
+                    emitter->onComplete();
+                }, 1000);
             })
             ->map([](const GAny &x) {
-                GThread::sleep(1);
+                // GThread::sleep(1);
                 return x + 1;
             })
             ->subscribeOn(threadScheduler)
@@ -54,15 +56,13 @@ int main(int argc, char **argv)
                         });
 
     mainScheduler->run();
-
-    timerScheduler = nullptr;
-    threadScheduler = nullptr;
-
     //
-    // Observable::just("Hello")
-    //         ->subscribe([](const GAny &v) {
-    //             Log("Just output: {}", v.toString());
-    //         });
+    //
+    // auto source = Observable::just("Hello", "World", "A", "B", "C");
+    // Observable::defer(source)->subscribe([](const GAny &v) {
+    //     Log("Just output: {}", v.toString());
+    // });
+
     //
     // Observable::empty()
     //         ->subscribe([](const GAny &v) {

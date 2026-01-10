@@ -81,20 +81,20 @@ public:
     void onError(const GAnyException &e) override
     {
         if (!isDisposed()) {
-            mDisposable = nullptr;
             if (mOnErrorAction) {
                 mOnErrorAction(e);
             }
+            mDisposable = nullptr;
         }
     }
 
     void onComplete() override
     {
         if (!isDisposed()) {
-            mDisposable = nullptr;
             if (mOnCompleteAction) {
                 mOnCompleteAction();
             }
+            mDisposable = nullptr;
         }
     }
 
