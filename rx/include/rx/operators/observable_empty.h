@@ -39,7 +39,7 @@ public:
 
     bool isDisposed() const override
     {
-        return this == instance().get();
+        return false;
     }
 };
 
