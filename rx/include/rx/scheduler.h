@@ -58,8 +58,14 @@ public:
         return mWorker->isDisposed();
     }
 
+    void setDisposable(const DisposablePtr &d)
+    {
+        mDisposable = d;
+    }
+
 private:
     WorkerPtr mWorker;
+    DisposablePtr mDisposable;
 };
 
 using DisposeTaskPtr = std::shared_ptr<DisposeTask>;
@@ -88,9 +94,11 @@ public:
         WorkerPtr w = createWorker();
         DisposeTaskPtr task = std::make_shared<DisposeTask>(w);
 
-        w->schedule([run] {
+        auto d = w->schedule([run] {
             run();
         }, delay);
+
+        task->setDisposable(d);
 
         return task;
     }

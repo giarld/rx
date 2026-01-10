@@ -26,7 +26,8 @@ int main(int argc, char **argv)
     mainScheduler->start();
     GTimerScheduler::makeGlobal(mainScheduler);
 
-    auto scheduler = std::make_shared<NewThreadScheduler>();
+    auto threadScheduler = NewThreadScheduler::create();
+    auto timerScheduler = MainThreadScheduler::create();
     Observable::create([](const ObservableEmitterPtr &emitter) {
                 emitter->onNext(123);
                 emitter->onNext("234");
@@ -39,7 +40,8 @@ int main(int argc, char **argv)
                 GThread::sleep(1);
                 return x + 1;
             })
-            ->subscribeOn(scheduler)
+            ->subscribeOn(threadScheduler)
+            ->observeOn(timerScheduler)
             ->subscribe([](const GAny &v) {
                             Log(">>>>> {}", v.toString());
                         }, [](const GAnyException &e) {
@@ -52,6 +54,9 @@ int main(int argc, char **argv)
                         });
 
     mainScheduler->run();
+
+    timerScheduler = nullptr;
+    threadScheduler = nullptr;
 
     //
     // Observable::just("Hello")

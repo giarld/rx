@@ -34,6 +34,8 @@ public:
 
     std::shared_ptr<Observable> subscribeOn(SchedulerPtr scheduler);
 
+    std::shared_ptr<Observable> observeOn(SchedulerPtr scheduler);
+
 public:
     void subscribe(const ObserverPtr &observer) override;
 

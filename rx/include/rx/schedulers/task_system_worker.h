@@ -2,8 +2,8 @@
 // Created by Gxin on 2026/1/8.
 //
 
-#ifndef RX_NEW_THREAD_WORKER_H
-#define RX_NEW_THREAD_WORKER_H
+#ifndef RX_TASK_SYSTEM_WORKER_H
+#define RX_TASK_SYSTEM_WORKER_H
 
 #include "scheduled_direct_task.h"
 #include "../scheduler.h"
@@ -13,34 +13,22 @@
 #include <gx/gtimer.h>
 
 
-
 namespace rx
 {
-class NewThreadWorker : public Worker
+class TaskSystemWorker : public Worker
 {
 public:
-    explicit NewThreadWorker(ThreadPriority threadPriority)
+    explicit TaskSystemWorker(GTaskSystem *taskSystem)
     {
-        mTaskSystem = std::make_unique<GTaskSystem>("NewThreadWorker_Thread", 1);
-        mTaskSystem->setThreadPriority(threadPriority);
-        mTaskSystem->start();
+        mTaskSystem = taskSystem;
     }
 
-    ~NewThreadWorker() override
-    {
-        auto ts = mTaskSystem;
-        mTaskSystem = nullptr;
-        GTimerScheduler::global()->post([ts]() {
-            ts->stop();
-        }, 0);
-    }
+    ~TaskSystemWorker() override = default;
 
 public:
     void dispose() override
     {
-        if (!mDisposed) {
-            mDisposed = true;
-        }
+        mDisposed.store(true, std::memory_order_relaxed);
     }
 
     bool isDisposed() const override
@@ -56,7 +44,7 @@ public:
         return scheduleDirect(run, delay);
     }
 
-    DisposablePtr scheduleDirect(const WorkerRunnable &run, uint64_t delay)
+    DisposablePtr scheduleDirect(const WorkerRunnable &run, uint64_t)
     {
         auto future = mTaskSystem->submit([run] {
             run();
@@ -67,18 +55,10 @@ public:
         return task;
     }
 
-    void shutdown()
-    {
-        if (mTaskSystem) {
-            mTaskSystem->stop();
-        }
-    }
-
 private:
     std::atomic<bool> mDisposed = false;
-
-    std::shared_ptr<GTaskSystem> mTaskSystem;
+    GTaskSystem *mTaskSystem;
 };
 } // rx
 
-#endif //RX_NEW_THREAD_WORKER_H
+#endif //RX_TASK_SYSTEM_WORKER_H

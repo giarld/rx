@@ -1,33 +1,54 @@
 //
-// Created by Gxin on 2026/1/8.
+// Created by Gxin on 2026/1/10.
 //
 
 #ifndef RX_NEW_THREAD_SCHEDULER_H
 #define RX_NEW_THREAD_SCHEDULER_H
 
-#include "new_thread_worker.h"
+#include "task_system_scheduler.h"
 
 
 namespace rx
 {
-class NewThreadScheduler : public Scheduler
+class NewThreadScheduler : public TaskSystemScheduler
 {
 public:
-    explicit NewThreadScheduler(ThreadPriority threadPriority = ThreadPriority::Normal)
-        : mThreadPriority(threadPriority)
+    explicit NewThreadScheduler(ThreadPriority threadPriority)
+        : TaskSystemScheduler(nullptr), mTaskSystemPtr(std::make_unique<GTaskSystem>("NewThreadScheduler_Thread", 1))
     {
+        mTaskSystem = mTaskSystemPtr.get();
+        mTaskSystem->setThreadPriority(threadPriority);
+        mTaskSystem->start();
     }
 
-    ~NewThreadScheduler() override = default;
+    ~NewThreadScheduler() override
+    {
+        mTaskSystemPtr->stop();
+        mTaskSystemPtr = nullptr;
+    }
+
+    static std::shared_ptr<NewThreadScheduler> create(ThreadPriority threadPriority = ThreadPriority::Normal)
+    {
+        return std::make_shared<NewThreadScheduler>(threadPriority);
+    }
 
 public:
-    WorkerPtr createWorker() override
+    void start() override
     {
-        return std::make_shared<NewThreadWorker>(mThreadPriority);
+        if (mTaskSystemPtr && !mTaskSystemPtr->isRunning()) {
+            mTaskSystemPtr->start();
+        }
+    }
+
+    void shutdown() override
+    {
+        if (mTaskSystemPtr && mTaskSystemPtr->isRunning()) {
+            mTaskSystemPtr->stop();
+        }
     }
 
 private:
-    ThreadPriority mThreadPriority = ThreadPriority::Normal;
+    std::unique_ptr<GTaskSystem> mTaskSystemPtr;
 };
 } // rx
 

@@ -15,7 +15,7 @@ class SubscribeOnObserver : public Observer, public Disposable
 {
 public:
     explicit SubscribeOnObserver(const ObserverPtr &observer)
-        : mObserver(observer), mDisposable(std::make_shared<AtomicDisposable>())
+        : mDownstream(observer), mDisposable(std::make_shared<AtomicDisposable>()), mUpstream(std::make_shared<AtomicDisposable>())
     {
     }
 
@@ -24,26 +24,30 @@ public:
 public:
     void onSubscribe(const DisposablePtr &d) override
     {
+        mUpstream = d;
     }
 
     void onNext(const GAny &value) override
     {
-        mObserver->onNext(value);
+        mDownstream->onNext(value);
     }
 
     void onError(const GAnyException &e) override
     {
-        mObserver->onError(e);
+        mDownstream->onError(e);
     }
 
     void onComplete() override
     {
-        mObserver->onComplete();
+        mDownstream->onComplete();
     }
 
     void dispose() override
     {
         if (const auto d = mDisposable) {
+            d->dispose();
+        }
+        if (const auto d = mUpstream) {
             d->dispose();
         }
     }
@@ -62,8 +66,9 @@ public:
     }
 
 private:
-    ObserverPtr mObserver;
+    ObserverPtr mDownstream;
     DisposablePtr mDisposable;
+    DisposablePtr mUpstream;
 };
 
 class ObservableSubscribeOn : public Observable

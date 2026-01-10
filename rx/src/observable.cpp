@@ -8,6 +8,7 @@
 #include "rx/operators/observable_empty.h"
 #include "rx/operators/observable_map.h"
 #include "rx/operators/observable_subscribe_on.h"
+#include "rx/operators/observable_observe_on.h"
 
 
 namespace rx
@@ -37,6 +38,11 @@ std::shared_ptr<Observable> Observable::map(MapFunction function)
 std::shared_ptr<Observable> Observable::subscribeOn(SchedulerPtr scheduler)
 {
     return std::make_shared<ObservableSubscribeOn>(this->shared_from_this(), scheduler);
+}
+
+std::shared_ptr<Observable> Observable::observeOn(SchedulerPtr scheduler)
+{
+    return std::make_shared<ObservableObserveOn>(this->shared_from_this(), scheduler);
 }
 
 
