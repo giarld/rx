@@ -83,8 +83,11 @@ protected:
         observer->onSubscribe(parent);
 
         const auto source = mSource;
-        parent->setDisposable(mScheduler->scheduleDirect([source, parent] {
-            source->subscribe(parent);
+        std::weak_ptr<SubscribeOnObserver> weakParent = parent;
+        parent->setDisposable(mScheduler->scheduleDirect([source, weakParent] {
+            if (const auto p = weakParent.lock()) {
+                source->subscribe(p);
+            }
         }));
     }
 

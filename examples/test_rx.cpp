@@ -22,28 +22,36 @@ int main(int argc, char **argv)
 
     initGAnyCore();
 
-    {
-        auto scheduler = std::make_shared<NewThreadScheduler>();
-        Observable::create([](const ObservableEmitterPtr &emitter) {
-                    // GThread::sleep(2);
-                    emitter->onNext(123);
-                    emitter->onNext("234");
-                    // throw GAnyException("Error");
-                    // emitter->onError(GAnyException("Error"));
-                    emitter->onNext(345);
-                    emitter->onComplete();
-                })
-                ->subscribeOn(scheduler)
-                ->subscribe([](const GAny &v) {
-                                Log(">>>>> {}", v.toString());
-                            }, [](const GAnyException &e) {
-                                LogE("Exception: {}", e.toString());
-                            }, []() {
-                                Log("Completed!!");
-                            });
-    }
+    auto mainScheduler = GTimerScheduler::create("MainScheduler");
+    mainScheduler->start();
+    GTimerScheduler::makeGlobal(mainScheduler);
 
-    GThread::sleep(2);
+    auto scheduler = std::make_shared<NewThreadScheduler>();
+    Observable::create([](const ObservableEmitterPtr &emitter) {
+                emitter->onNext(123);
+                emitter->onNext("234");
+                // throw GAnyException("Error");
+                // emitter->onError(GAnyException("Error"));
+                emitter->onNext(345);
+                emitter->onComplete();
+            })
+            ->map([](const GAny &x) {
+                GThread::sleep(1);
+                return x + 1;
+            })
+            ->subscribeOn(scheduler)
+            ->subscribe([](const GAny &v) {
+                            Log(">>>>> {}", v.toString());
+                        }, [](const GAnyException &e) {
+                            LogE("Exception: {}", e.toString());
+                        }, [&]() {
+                            Log("Completed!!");
+                            mainScheduler->post([&] {
+                                mainScheduler->stop();
+                            }, 1);
+                        });
+
+    mainScheduler->run();
 
     //
     // Observable::just("Hello")

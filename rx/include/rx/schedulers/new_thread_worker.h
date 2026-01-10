@@ -10,6 +10,7 @@
 #include "../operators/observable_empty.h"
 
 #include <gx/gtasksystem.h>
+#include <gx/gtimer.h>
 
 
 
@@ -27,8 +28,11 @@ public:
 
     ~NewThreadWorker() override
     {
-        mTaskSystem->stop();
+        auto ts = mTaskSystem;
         mTaskSystem = nullptr;
+        GTimerScheduler::global()->post([ts]() {
+            ts->stop();
+        }, 0);
     }
 
 public:
@@ -73,7 +77,7 @@ public:
 private:
     std::atomic<bool> mDisposed = false;
 
-    std::unique_ptr<GTaskSystem> mTaskSystem;
+    std::shared_ptr<GTaskSystem> mTaskSystem;
 };
 } // rx
 

@@ -101,8 +101,12 @@ public:
     void dispose() override
     {
         if (const auto d = mDisposable) {
+            mDisposable = nullptr;
             d->dispose();
         }
+        mOnNextAction = nullptr;
+        mOnErrorAction = nullptr;
+        mOnCompleteAction = nullptr;
     }
 
     bool isDisposed() const override

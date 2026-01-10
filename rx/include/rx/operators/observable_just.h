@@ -43,16 +43,18 @@ public:
     {
         uint32_t expected = State::Start;
         if (mState.compare_exchange_strong(expected, State::OnNext)) {
-            mObserver->onNext(mValue);
-            expected = State::OnNext;
-            if (mState.compare_exchange_strong(expected, State::OnComplete)) {
-                mObserver->onComplete();
+            if (const auto o = mObserver.lock()) {
+                o->onNext(mValue);
+                expected = State::OnNext;
+                if (mState.compare_exchange_strong(expected, State::OnComplete)) {
+                    o->onComplete();
+                }
             }
         }
     }
 
 private:
-    ObserverPtr mObserver;
+    std::weak_ptr<Observer> mObserver;
     GAny mValue;
 
     std::atomic<uint32_t> mState = State::Start;

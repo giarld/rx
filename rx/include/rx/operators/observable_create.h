@@ -29,7 +29,9 @@ public:
             return;
         }
         if (!isDisposed()) {
-            mObserver->onNext(value);
+            if (const auto o = mObserver.lock()) {
+                o->onNext(value);
+            }
         }
     }
 
@@ -37,7 +39,9 @@ public:
     {
         if (!isDisposed()) {
             try {
-                mObserver->onError(e);
+                if (const auto o = mObserver.lock()) {
+                    o->onError(e);
+                }
             } catch (GAnyException _e) {
             }
             dispose();
@@ -48,7 +52,9 @@ public:
     {
         if (!isDisposed()) {
             try {
-                mObserver->onComplete();
+                if (const auto o = mObserver.lock()) {
+                    o->onComplete();
+                }
             } catch (GAnyException _e) {
             }
             dispose();
@@ -76,7 +82,7 @@ public:
     }
 
 private:
-    ObserverPtr mObserver;
+    std::weak_ptr<Observer> mObserver;
     DisposablePtr mDisposable = nullptr;
 };
 

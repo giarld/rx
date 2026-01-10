@@ -10,11 +10,11 @@
 
 namespace rx
 {
-class MapObserver : public Observer, public AtomicDisposable
+class MapObserver : public Observer, public Disposable, public std::enable_shared_from_this<MapObserver>
 {
 public:
     explicit MapObserver(const ObserverPtr &observer, const MapFunction &function)
-        : mObserver(observer), mFunction(function)
+        : mDownstream(observer), mFunction(function)
     {
     }
 
@@ -23,48 +23,58 @@ public:
 public:
     void onSubscribe(const DisposablePtr &d) override
     {
-
+        mUpstream = d;
+        mDownstream->onSubscribe(this->shared_from_this());
     }
 
     void onNext(const GAny &value) override
     {
-        if (!isDisposed()) {
-            GAny r;
-            try {
-                r = mFunction(value);
-            } catch (GAnyException e) {
-                onError(e);
-                return;
-            }
-            mObserver->onNext(r);
+        if (mDown) {
+            return;
         }
+        GAny r;
+        try {
+            r = mFunction(value);
+        } catch (GAnyException e) {
+            onError(e);
+            return;
+        }
+        mDownstream->onNext(r);
     }
 
     void onError(const GAnyException &e) override
     {
-        if (!isDisposed()) {
-            try {
-                mObserver->onError(e);
-            } catch (GAnyException _e) {
-            }
-            dispose();
+        if (mDown) {
+            return;
         }
+        mDown = true;
+        mDownstream->onError(e);
     }
 
     void onComplete() override
     {
-        if (!isDisposed()) {
-            try {
-                mObserver->onComplete();
-            } catch (GAnyException _e) {
-            }
-            dispose();
+        if (mDown) {
+            return;
         }
+        mDown = true;
+        mDownstream->onComplete();
+    }
+
+    void dispose() override
+    {
+        mUpstream->dispose();
+    }
+
+    bool isDisposed() const override
+    {
+        return mUpstream->isDisposed();
     }
 
 private:
-    ObserverPtr mObserver;
+    ObserverPtr mDownstream;
     MapFunction mFunction;
+    DisposablePtr mUpstream;
+    bool mDown = false;
 };
 
 class ObservableMap : public Observable
