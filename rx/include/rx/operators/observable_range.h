@@ -40,7 +40,7 @@ public:
 
     bool isDisposed() const override
     {
-        return mDisposed.load();
+        return mDisposed.load(std::memory_order_acquire);
     }
 
 private:
