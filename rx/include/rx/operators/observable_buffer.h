@@ -70,10 +70,10 @@ public:
 
     bool isDisposed() const override
     {
-        if (mUpstream) {
-            return mUpstream->isDisposed();
+        if (const auto d = mUpstream) {
+            return d->isDisposed();
         }
-        return false;
+        return true;
     }
 
 private:
@@ -153,10 +153,10 @@ public:
 
     bool isDisposed() const override
     {
-        if (mUpstream) {
-            return mUpstream->isDisposed();
+        if (const auto d = mUpstream) {
+            return d->isDisposed();
         }
-        return false;
+        return true;
     }
 
 private:

@@ -56,6 +56,21 @@ int main(int argc, char **argv)
                         });
 
     mainScheduler->run();
+
+
+    Observable::just(1, 2, 3)
+            ->buffer(1)
+            ->flatMap([](const GAny &v) {
+                return Observable::just(v);
+            })
+            ->subscribe([](const GAny &v) {
+                            Log(">>>>> {}", v.toString());
+                        }, [](const GAnyException &e) {
+                            LogE("Exception: {}", e.toString());
+                        }, [&]() {
+                            Log("Completed!!");
+                        });
+
     //
     //
     // auto source = Observable::just("Hello", "World", "A", "B", "C");

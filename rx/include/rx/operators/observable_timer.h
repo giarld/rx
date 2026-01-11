@@ -26,9 +26,11 @@ public:
     void timeout() override
     {
         if (!isDisposed()) {
-            mDownstream->onNext(0ULL);
-            mDownstream->onComplete();
-            mDownstream = nullptr;
+            if (const auto o = mDownstream) {
+                mDownstream = nullptr;
+                o->onNext(0ULL);
+                o->onComplete();
+            }
         }
     }
 

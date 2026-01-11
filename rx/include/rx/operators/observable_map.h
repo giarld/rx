@@ -31,13 +31,14 @@ public:
 
     void onNext(const GAny &value) override
     {
-        if (mDown) {
+        if (mDown.load()) {
             return;
         }
         GAny r;
         try {
             r = mFunction(value);
-        } catch (GAnyException e) {
+        } catch (const GAnyException &e) {
+            mUpstream->dispose();
             onError(e);
             return;
         }
@@ -46,10 +47,10 @@ public:
 
     void onError(const GAnyException &e) override
     {
-        if (mDown) {
+        if (mDown.load()) {
             return;
         }
-        mDown = true;
+        mDown.store(true, std::memory_order_release);
         mDownstream->onError(e);
 
         mDownstream = nullptr;
@@ -58,10 +59,10 @@ public:
 
     void onComplete() override
     {
-        if (mDown) {
+        if (mDown.load()) {
             return;
         }
-        mDown = true;
+        mDown.store(true, std::memory_order_release);
         mDownstream->onComplete();
 
         mDownstream = nullptr;
@@ -79,24 +80,24 @@ public:
 
     bool isDisposed() const override
     {
-        if (mUpstream) {
-            return mUpstream->isDisposed();
+        if (const auto d = mUpstream) {
+            return d->isDisposed();
         }
-        return false;
+        return true;
     }
 
 private:
     ObserverPtr mDownstream;
     MapFunction mFunction;
     DisposablePtr mUpstream;
-    bool mDown = false;
+    std::atomic<bool> mDown = false;
 };
 
 class ObservableMap : public Observable
 {
 public:
-    explicit ObservableMap(ObservableSourcePtr source, MapFunction function)
-        : mSource(std::move(source)), mMapFunction(std::move(function))
+    explicit ObservableMap(ObservableSourcePtr source, const MapFunction &function)
+        : mSource(std::move(source)), mMapFunction(function)
     {
     }
 

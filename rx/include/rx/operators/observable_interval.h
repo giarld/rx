@@ -26,7 +26,9 @@ public:
     void timeout() override
     {
         if (!isDisposed()) {
-            mDownstream->onNext(mCount++);
+            if (const auto o = mDownstream) {
+                o->onNext(mCount++);
+            }
         }
     }
 
@@ -43,7 +45,6 @@ public:
 
 private:
     ObserverPtr mDownstream;
-    GTimer mTimer;
     uint64_t mCount = 0;
 };
 

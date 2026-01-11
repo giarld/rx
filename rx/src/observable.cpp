@@ -9,6 +9,7 @@
 #include "rx/operators/observable_defer.h"
 #include "rx/operators/observable_empty.h"
 #include "rx/operators/observable_error.h"
+#include "rx/operators/observable_flat_map.h"
 #include "rx/operators/observable_from_array.h"
 #include "rx/operators/observable_interval.h"
 #include "rx/operators/observable_just.h"
@@ -133,9 +134,14 @@ std::shared_ptr<Observable> Observable::range(int64_t start, uint64_t count)
 }
 
 
-std::shared_ptr<Observable> Observable::map(MapFunction function)
+std::shared_ptr<Observable> Observable::map(const MapFunction &function)
 {
-    return std::make_shared<ObservableMap>(this->shared_from_this(), std::move(function));
+    return std::make_shared<ObservableMap>(this->shared_from_this(), function);
+}
+
+std::shared_ptr<Observable> Observable::flatMap(const FlatMapFunction &function)
+{
+    return std::make_shared<ObservableFlatMap>(this->shared_from_this(), function);
 }
 
 std::shared_ptr<Observable> Observable::buffer(uint64_t count, uint64_t skip)

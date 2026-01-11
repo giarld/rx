@@ -94,8 +94,8 @@ public:
         WorkerPtr w = createWorker();
         DisposeTaskPtr task = std::make_shared<DisposeTask>(w);
 
-        auto d = w->schedule([run] {
-            run();
+        const auto d = w->schedule([runnable = std::move(run)] {
+            runnable();
         }, delay);
 
         task->setDisposable(d);

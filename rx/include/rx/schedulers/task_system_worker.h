@@ -36,7 +36,7 @@ public:
         return mDisposed.load();
     }
 
-    DisposablePtr schedule(const WorkerRunnable &run, uint64_t delay) override
+    DisposablePtr schedule(const WorkerRunnable &run, uint64_t /*delay*/) override
     {
         if (!mDisposed) {
             mTaskSystem->submit([run] {

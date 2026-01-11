@@ -57,7 +57,7 @@ public:
         if (mOnSubscribeAction) {
             try {
                 mOnSubscribeAction(d);
-            } catch (GAnyException e) {
+            } catch (const GAnyException &e) {
                 d->dispose();
                 onError(e);
             }
@@ -70,7 +70,7 @@ public:
             if (mOnNextAction) {
                 try {
                     mOnNextAction(value);
-                } catch (GAnyException e) {
+                } catch (const GAnyException &e) {
                     dispose();
                     onError(e);
                 }
@@ -114,7 +114,7 @@ public:
         if (const auto d = mDisposable) {
             return d->isDisposed();
         }
-        return false;
+        return true;
     }
 
 private:

@@ -74,7 +74,7 @@ public:
         if (const auto d = mDisposable) {
             return d->isDisposed();
         }
-        return false;
+        return true;
     }
 
     void setDisposable(const DisposablePtr &d) override
@@ -107,7 +107,7 @@ protected:
 
         try {
             mSource(parent);
-        } catch (GAnyException e) {
+        } catch (const GAnyException &e) {
             parent->onError(e);
         }
     }

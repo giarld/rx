@@ -39,8 +39,7 @@ public:
         }
 
         auto d = mDownstream;
-        std::weak_ptr<ObserveOnObserver> weakThiz = this->shared_from_this();
-        const auto t = mWorker->schedule([d, value] {
+        mWorker->schedule([d, value] {
             d->onNext(value);
         });
     }
@@ -55,7 +54,7 @@ public:
 
         auto d = mDownstream;
         std::weak_ptr<ObserveOnObserver> weakThiz = this->shared_from_this();
-        const auto t = mWorker->schedule([weakThiz, d, e] {
+        mWorker->schedule([weakThiz, d, e] {
             d->onError(e);
             if (const auto thiz = weakThiz.lock()) {
                 thiz->dispose();
@@ -73,7 +72,7 @@ public:
 
         auto d = mDownstream;
         std::weak_ptr<ObserveOnObserver> weakThiz = this->shared_from_this();
-        const auto t = mWorker->schedule([weakThiz, d] {
+        mWorker->schedule([weakThiz, d] {
             d->onComplete();
             if (const auto thiz = weakThiz.lock()) {
                 thiz->dispose();
