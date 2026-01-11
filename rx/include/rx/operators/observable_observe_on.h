@@ -39,9 +39,14 @@ public:
         }
 
         auto d = mDownstream;
-        mWorker->schedule([d, value] {
+
+        mQueueLock.lock();
+        mQueue.push([d, value] {
             d->onNext(value);
         });
+        mQueueLock.unlock();
+
+        schedule();
     }
 
     void onError(const GAnyException &e) override
@@ -54,12 +59,16 @@ public:
 
         auto d = mDownstream;
         std::weak_ptr<ObserveOnObserver> weakThiz = this->shared_from_this();
-        mWorker->schedule([weakThiz, d, e] {
+        mQueueLock.lock();
+        mQueue.push([weakThiz, d, e] {
             d->onError(e);
             if (const auto thiz = weakThiz.lock()) {
                 thiz->dispose();
             }
         });
+        mQueueLock.unlock();
+
+        schedule();
     }
 
     void onComplete() override
@@ -72,12 +81,16 @@ public:
 
         auto d = mDownstream;
         std::weak_ptr<ObserveOnObserver> weakThiz = this->shared_from_this();
-        mWorker->schedule([weakThiz, d] {
+        mQueueLock.lock();
+        mQueue.push([weakThiz, d] {
             d->onComplete();
             if (const auto thiz = weakThiz.lock()) {
                 thiz->dispose();
             }
         });
+        mQueueLock.unlock();
+
+        schedule();
     }
 
     void dispose() override
@@ -87,10 +100,15 @@ public:
                 up->dispose();
                 mUpstream = nullptr;
             }
-
-            if (mWorker) {
-                mWorker->dispose();
+            if (const auto w = mWorker) {
+                w->dispose();
             }
+
+            mQueueLock.lock();
+            while (!mQueue.empty()) {
+                mQueue.pop();
+            }
+            mQueueLock.unlock();
         }
     }
 
@@ -100,11 +118,35 @@ public:
     }
 
 private:
+    void schedule()
+    {
+        std::weak_ptr<ObserveOnObserver> weakThiz = this->shared_from_this();
+        mWorker->schedule([weakThiz] {
+            if (const auto thiz = weakThiz.lock()) {
+                std::function<void()> f = nullptr;
+                thiz->mQueueLock.lock();
+                if (!thiz->mQueue.empty()) {
+                    f = thiz->mQueue.front();
+                    thiz->mQueue.pop();
+                }
+                thiz->mQueueLock.unlock();
+
+                if (f) {
+                    f();
+                }
+            }
+        });
+    }
+
+private:
     ObserverPtr mDownstream;
     std::shared_ptr<Worker> mWorker;
     DisposablePtr mUpstream = nullptr;
     std::atomic<bool> mDone = false;
     std::atomic<bool> mDisposed = false;
+
+    std::queue<std::function<void()> > mQueue;
+    GMutex mQueueLock;
 };
 
 class ObservableObserveOn : public Observable
