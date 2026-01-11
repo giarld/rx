@@ -1,2 +1,2 @@
 # rx
-A ReactiveX implementation
+A C++ ReactiveX library built on the design concepts of RxJava
