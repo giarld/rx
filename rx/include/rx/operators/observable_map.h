@@ -23,8 +23,10 @@ public:
 public:
     void onSubscribe(const DisposablePtr &d) override
     {
-        mUpstream = d;
-        mDownstream->onSubscribe(this->shared_from_this());
+        if (Disposable::validate(mUpstream.get(), d.get())) {
+            mUpstream = d;
+            mDownstream->onSubscribe(this->shared_from_this());
+        }
     }
 
     void onNext(const GAny &value) override
@@ -49,6 +51,9 @@ public:
         }
         mDown = true;
         mDownstream->onError(e);
+
+        mDownstream = nullptr;
+        mUpstream = nullptr;
     }
 
     void onComplete() override
@@ -58,19 +63,26 @@ public:
         }
         mDown = true;
         mDownstream->onComplete();
+
+        mDownstream = nullptr;
+        mUpstream = nullptr;
     }
 
     void dispose() override
     {
         if (mUpstream) {
             mUpstream->dispose();
-            mUpstream = nullptr; // 最佳实践：总是打断上游引用
+            mUpstream = nullptr;
         }
+        mDownstream = nullptr;
     }
 
     bool isDisposed() const override
     {
-        return mUpstream->isDisposed();
+        if (mUpstream) {
+            return mUpstream->isDisposed();
+        }
+        return false;
     }
 
 private:

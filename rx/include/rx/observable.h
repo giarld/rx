@@ -63,8 +63,14 @@ public:
 
     static std::shared_ptr<Observable> timer(uint64_t delay);
 
+    static std::shared_ptr<Observable> range(int64_t start, uint64_t count);
+
 
     std::shared_ptr<Observable> map(MapFunction function);
+
+    std::shared_ptr<Observable> buffer(uint64_t count, uint64_t skip);
+
+    std::shared_ptr<Observable> buffer(uint64_t count);
 
 
     std::shared_ptr<Observable> subscribeOn(SchedulerPtr scheduler);

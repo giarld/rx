@@ -3,6 +3,8 @@
 //
 
 #include "rx/observable.h"
+
+#include "rx/operators/observable_buffer.h"
 #include "rx/operators/observable_create.h"
 #include "rx/operators/observable_defer.h"
 #include "rx/operators/observable_empty.h"
@@ -13,6 +15,7 @@
 #include "rx/operators/observable_map.h"
 #include "rx/operators/observable_never.h"
 #include "rx/operators/observable_observe_on.h"
+#include "rx/operators/observable_range.h"
 #include "rx/operators/observable_subscribe_on.h"
 #include "rx/operators/observable_timer.h"
 
@@ -112,10 +115,37 @@ std::shared_ptr<Observable> Observable::timer(uint64_t delay)
     return std::make_shared<ObservableTimer>(delay);
 }
 
+std::shared_ptr<Observable> Observable::range(int64_t start, uint64_t count)
+{
+    if (count == 0) {
+        return empty();
+    }
+
+    if (count == 1) {
+        return just(start);
+    }
+
+    if (start + (count - 1) > std::numeric_limits<int64_t>::max()) {
+        throw GAnyException("Integer overflow");
+    }
+
+    return std::make_shared<ObservableRange>(start, count);
+}
+
 
 std::shared_ptr<Observable> Observable::map(MapFunction function)
 {
     return std::make_shared<ObservableMap>(this->shared_from_this(), std::move(function));
+}
+
+std::shared_ptr<Observable> Observable::buffer(uint64_t count, uint64_t skip)
+{
+    return std::make_shared<ObservableBuffer>(this->shared_from_this(), count, skip);
+}
+
+std::shared_ptr<Observable> Observable::buffer(uint64_t count)
+{
+    return buffer(count, count);
 }
 
 

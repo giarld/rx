@@ -25,7 +25,7 @@ public:
 public:
     void onSubscribe(const DisposablePtr &d) override
     {
-        if (validate(mUpstream, d)) {
+        if (Disposable::validate(mUpstream.get(), d.get())) {
             mUpstream = d;
             const auto thiz = this->shared_from_this();
             mDownstream->onSubscribe(thiz);
@@ -98,19 +98,6 @@ public:
     bool isDisposed() const override
     {
         return mDisposed.load();
-    }
-
-private:
-    static bool validate(const DisposablePtr &current, const DisposablePtr &next)
-    {
-        if (next == nullptr) {
-            return false;
-        }
-        if (current != nullptr) {
-            next->dispose();
-            return false;
-        }
-        return true;
     }
 
 private:

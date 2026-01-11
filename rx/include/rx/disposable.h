@@ -18,6 +18,18 @@ struct Disposable
     virtual void dispose() = 0;
 
     virtual bool isDisposed() const = 0;
+
+    static bool validate(Disposable *const current, Disposable *const next)
+    {
+        if (next == nullptr) {
+            return false;
+        }
+        if (current != nullptr) {
+            next->dispose();
+            return false;
+        }
+        return true;
+    }
 };
 
 using DisposablePtr = std::shared_ptr<Disposable>;
