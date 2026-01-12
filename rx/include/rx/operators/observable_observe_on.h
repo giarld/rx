@@ -1,13 +1,14 @@
 //
 // Created by Gxin on 2026/1/10.
 //
-
 #ifndef RX_OBSERVABLE_OBSERVE_ON_H
 #define RX_OBSERVABLE_OBSERVE_ON_H
 
 #include "../observable.h"
 #include "../scheduler.h"
 #include "gx/gmutex.h"
+#include <queue>
+#include <atomic>
 
 
 namespace rx
@@ -27,88 +28,89 @@ public:
     {
         if (Disposable::validate(mUpstream.get(), d.get())) {
             mUpstream = d;
-            const auto thiz = this->shared_from_this();
-            mDownstream->onSubscribe(thiz);
+            mDownstream->onSubscribe(this->shared_from_this());
         }
     }
 
     void onNext(const GAny &value) override
     {
-        if (mDone.load()) {
+        if (mDone.load(std::memory_order_acquire) || isDisposed()) {
             return;
         }
 
         auto d = mDownstream;
-
-        mQueueLock.lock();
-        mQueue.push([d, value] {
-            d->onNext(value);
-        });
-        mQueueLock.unlock();
-
+        //
+        {
+            GLockerGuard lock(mQueueLock);
+            mQueue.push([d, value] {
+                d->onNext(value);
+            });
+        }
         schedule();
     }
 
     void onError(const GAnyException &e) override
     {
-        if (mDone.load()) {
+        if (mDone.exchange(true, std::memory_order_acq_rel)) {
             return;
         }
 
-        mDone.store(true, std::memory_order_release);
-
         auto d = mDownstream;
         std::weak_ptr<ObserveOnObserver> weakThiz = this->shared_from_this();
-        mQueueLock.lock();
-        mQueue.push([weakThiz, d, e] {
-            d->onError(e);
-            if (const auto thiz = weakThiz.lock()) {
-                thiz->dispose();
-            }
-        });
-        mQueueLock.unlock();
-
+        //
+        {
+            GLockerGuard lock(mQueueLock);
+            mQueue.push([weakThiz, d, e] {
+                d->onError(e);
+                if (const auto thiz = weakThiz.lock()) {
+                    thiz->disposeWorker();
+                }
+            });
+        }
         schedule();
     }
 
     void onComplete() override
     {
-        if (mDone.load()) {
+        if (mDone.exchange(true, std::memory_order_acq_rel)) {
             return;
         }
 
-        mDone.store(true, std::memory_order_release);
-
         auto d = mDownstream;
         std::weak_ptr<ObserveOnObserver> weakThiz = this->shared_from_this();
-        mQueueLock.lock();
-        mQueue.push([weakThiz, d] {
-            d->onComplete();
-            if (const auto thiz = weakThiz.lock()) {
-                thiz->dispose();
-            }
-        });
-        mQueueLock.unlock();
-
+        //
+        {
+            GLockerGuard lock(mQueueLock);
+            mQueue.push([weakThiz, d] {
+                d->onComplete();
+                if (const auto thiz = weakThiz.lock()) {
+                    thiz->disposeWorker();
+                }
+            });
+        }
         schedule();
     }
 
     void dispose() override
     {
-        if (!mDisposed.exchange(true, std::memory_order_release)) {
+        if (!mDisposed.exchange(true, std::memory_order_acq_rel)) {
             if (const auto up = mUpstream) {
                 up->dispose();
                 mUpstream = nullptr;
             }
-            if (const auto w = mWorker) {
-                w->dispose();
-            }
+            disposeWorker();
 
-            mQueueLock.lock();
+            GLockerGuard lock(mQueueLock);
             while (!mQueue.empty()) {
                 mQueue.pop();
             }
-            mQueueLock.unlock();
+        }
+    }
+
+    void disposeWorker() const
+    {
+        if (const auto w = mWorker) {
+            w->dispose();
         }
     }
 
@@ -120,30 +122,63 @@ public:
 private:
     void schedule()
     {
-        std::weak_ptr<ObserveOnObserver> weakThiz = this->shared_from_this();
-        mWorker->schedule([weakThiz] {
-            if (const auto thiz = weakThiz.lock()) {
-                std::function<void()> f = nullptr;
-                thiz->mQueueLock.lock();
-                if (!thiz->mQueue.empty()) {
-                    f = thiz->mQueue.front();
-                    thiz->mQueue.pop();
+        if (mWip.fetch_add(1, std::memory_order_acq_rel) == 0) {
+            std::weak_ptr<ObserveOnObserver> weakThiz = this->shared_from_this();
+            mWorker->schedule([weakThiz] {
+                if (const auto thiz = weakThiz.lock()) {
+                    thiz->drain();
                 }
-                thiz->mQueueLock.unlock();
+            });
+        }
+    }
 
-                if (f) {
-                    f();
+    void drain()
+    {
+        int missed = 1;
+
+        while (true) {
+            while (true) {
+                if (isDisposed()) {
+                    GLockerGuard lock(mQueueLock);
+                    while (!mQueue.empty()) {
+                        mQueue.pop();
+                    }
+                    return;
+                }
+
+                std::function<void()> task = nullptr;
+                //
+                {
+                    GLockerGuard lock(mQueueLock);
+                    if (!mQueue.empty()) {
+                        task = std::move(mQueue.front());
+                        mQueue.pop();
+                    }
+                }
+
+                if (task) {
+                    task();
+                } else {
+                    break;
                 }
             }
-        });
+
+            missed = mWip.fetch_sub(missed, std::memory_order_acq_rel) - missed;
+            if (missed == 0) {
+                break;
+            }
+        }
     }
 
 private:
     ObserverPtr mDownstream;
     std::shared_ptr<Worker> mWorker;
     DisposablePtr mUpstream = nullptr;
+
     std::atomic<bool> mDone = false;
     std::atomic<bool> mDisposed = false;
+
+    std::atomic<int32_t> mWip = 0;
 
     std::queue<std::function<void()> > mQueue;
     GMutex mQueueLock;
