@@ -9,6 +9,7 @@
 #include "rx/operators/observable_defer.h"
 #include "rx/operators/observable_empty.h"
 #include "rx/operators/observable_error.h"
+#include "rx/operators/observable_filter.h"
 #include "rx/operators/observable_flat_map.h"
 #include "rx/operators/observable_from_array.h"
 #include "rx/operators/observable_interval.h"
@@ -152,6 +153,12 @@ std::shared_ptr<Observable> Observable::buffer(uint64_t count, uint64_t skip)
 std::shared_ptr<Observable> Observable::buffer(uint64_t count)
 {
     return buffer(count, count);
+}
+
+
+std::shared_ptr<Observable> Observable::filter(const FilterFunction &filter)
+{
+    return std::make_shared<ObservableFilter>(this->shared_from_this(), filter);
 }
 
 

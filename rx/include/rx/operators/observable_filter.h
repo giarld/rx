@@ -1,24 +1,24 @@
 //
-// Created by Gxin on 2026/1/7.
+// Created by Gxin on 2026/1/12.
 //
 
-#ifndef RX_OBSERVABLE_MAP_H
-#define RX_OBSERVABLE_MAP_H
+#ifndef RX_OBSERVABLE_FILTER_H
+#define RX_OBSERVABLE_FILTER_H
 
 #include "../observable.h"
+#include "../disposables/disposable_helper.h"
 
 
 namespace rx
 {
-class MapObserver : public Observer, public Disposable, public std::enable_shared_from_this<MapObserver>
+class FilterObserver : public Observer, public Disposable, public std::enable_shared_from_this<FilterObserver>
 {
 public:
-    explicit MapObserver(const ObserverPtr &observer, const MapFunction &function)
-        : mDownstream(observer), mFunction(function)
-    {
-    }
+    explicit FilterObserver(const ObserverPtr &observer, const FilterFunction &filter)
+        : mFilter(filter), mDownstream(observer)
+    {}
 
-    ~MapObserver() override = default;
+    ~FilterObserver() override = default;
 
 public:
     void onSubscribe(const DisposablePtr &d) override
@@ -34,15 +34,17 @@ public:
         if (mDone.load(std::memory_order_acquire)) {
             return;
         }
-        GAny r;
+        bool b;
         try {
-            r = mFunction(value);
+            b = mFilter(value);
         } catch (const GAnyException &e) {
             mUpstream->dispose();
             onError(e);
             return;
         }
-        mDownstream->onNext(r);
+        if (b) {
+            mDownstream->onNext(value);
+        }
     }
 
     void onError(const GAnyException &e) override
@@ -85,32 +87,33 @@ public:
     }
 
 private:
+    FilterFunction mFilter;
     ObserverPtr mDownstream;
-    MapFunction mFunction;
     DisposablePtr mUpstream;
     std::atomic<bool> mDone = false;
+    GMutex mLock;
 };
 
-class ObservableMap : public Observable
+class ObservableFilter : public Observable
 {
 public:
-    explicit ObservableMap(ObservableSourcePtr source, const MapFunction &function)
-        : mSource(std::move(source)), mMapFunction(function)
+    explicit ObservableFilter(ObservableSourcePtr source, const FilterFunction &filter)
+        : mSource(std::move(source)), mFilter(filter)
     {
     }
 
-    ~ObservableMap() override = default;
+    ~ObservableFilter() override = default;
 
 protected:
     void subscribeActual(const ObserverPtr &observer) override
     {
-        mSource->subscribe(std::make_shared<MapObserver>(observer, mMapFunction));
+        mSource->subscribe(std::make_shared<FilterObserver>(observer, mFilter));
     }
 
 private:
     ObservableSourcePtr mSource;
-    MapFunction mMapFunction;
+    FilterFunction mFilter;
 };
 } // rx
 
-#endif //RX_OBSERVABLE_MAP_H
+#endif //RX_OBSERVABLE_FILTER_H
