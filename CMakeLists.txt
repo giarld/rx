@@ -14,6 +14,11 @@ if (NOT CMAKE_SIZEOF_VOID_P)
     endif ()
 endif ()
 
+if (MSVC)
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /utf-8")
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /utf-8")
+endif ()
+
 if (NOT T_EXECUTABLE_OUTPUT_PATH)
     set(T_EXECUTABLE_OUTPUT_PATH ${CMAKE_BINARY_DIR}/bin)
 endif ()
