@@ -7,6 +7,7 @@
 
 #include "../observable.h"
 #include "../scheduler.h"
+#include "../disposables/disposable_helper.h"
 
 
 namespace rx
@@ -15,7 +16,7 @@ class SubscribeOnObserver : public Observer, public Disposable
 {
 public:
     explicit SubscribeOnObserver(const ObserverPtr &observer)
-        : mDownstream(observer), mDisposable(std::make_shared<AtomicDisposable>()), mUpstream(std::make_shared<AtomicDisposable>())
+        : mDownstream(observer)
     {
     }
 
@@ -24,7 +25,7 @@ public:
 public:
     void onSubscribe(const DisposablePtr &d) override
     {
-        mUpstream = d;
+        DisposableHelper::setOnce(mUpstream, d, mLock);
     }
 
     void onNext(const GAny &value) override
@@ -44,33 +45,25 @@ public:
 
     void dispose() override
     {
-        if (const auto d = mDisposable) {
-            d->dispose();
-            mDisposable = nullptr;
-        }
-        if (const auto d = mUpstream) {
-            d->dispose();
-            mUpstream = nullptr;
-        }
+        DisposableHelper::dispose(mUpstream, mLock);
+        DisposableHelper::dispose(mDisposable, mLock);
     }
 
     bool isDisposed() const override
     {
-        if (const auto d = mDisposable) {
-            return d->isDisposed();
-        }
-        return false;
+        return DisposableHelper::isDisposed(mDisposable);
     }
 
     void setDisposable(const DisposablePtr &d)
     {
-        mDisposable = d;
+        DisposableHelper::setOnce(mDisposable, d, mLock);
     }
 
 private:
     ObserverPtr mDownstream;
     DisposablePtr mDisposable;
     DisposablePtr mUpstream;
+    GMutex mLock;
 };
 
 class ObservableSubscribeOn : public Observable

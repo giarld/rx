@@ -6,7 +6,7 @@
 #define RX_OBSERVABLE_FLAT_MAP_H
 
 #include "../observable.h"
-#include <gx/gmutex.h>
+#include "../disposables/disposable_helper.h"
 #include <map>
 #include <atomic>
 
@@ -27,7 +27,7 @@ public:
 
     void onSubscribe(const DisposablePtr &d) override
     {
-        mDisposable = d;
+        DisposableHelper::setOnce(mDisposable, d, mLock);
     }
 
     void onNext(const GAny &value) override;
@@ -38,18 +38,12 @@ public:
 
     void dispose() override
     {
-        if (const auto d = mDisposable) {
-            d->dispose();
-            mDisposable = nullptr;
-        }
+        DisposableHelper::dispose(mDisposable, mLock);
     }
 
     bool isDisposed() const override
     {
-        if (const auto d = mDisposable) {
-            return d->isDisposed();
-        }
-        return true;
+        return DisposableHelper::isDisposed(mDisposable);
     }
 
     DisposablePtr getDisposable() { return mDisposable; }
@@ -58,6 +52,7 @@ private:
     std::weak_ptr<FlatMapObserver> mParent;
     uint64_t mId;
     DisposablePtr mDisposable;
+    GMutex mLock;
 };
 
 class FlatMapObserver : public Observer, public Disposable, public std::enable_shared_from_this<FlatMapObserver>
@@ -74,7 +69,7 @@ public:
 public:
     void onSubscribe(const DisposablePtr &d) override
     {
-        if (Disposable::validate(mUpstream.get(), d.get())) {
+        if (DisposableHelper::validate(mUpstream, d)) {
             mUpstream = d;
             mDownstream->onSubscribe(this->shared_from_this());
         }
@@ -82,7 +77,7 @@ public:
 
     void onNext(const GAny &value) override
     {
-        if (mDown.load()) {
+        if (mDown.load(std::memory_order_acquire)) {
             return;
         }
 
@@ -108,7 +103,7 @@ public:
 
     void onError(const GAnyException &e) override
     {
-        if (mDown.exchange(true)) {
+        if (mDown.exchange(true, std::memory_order_acq_rel)) {
             return;
         }
         dispose();
@@ -118,7 +113,7 @@ public:
     void onComplete() override
     {
         if (mActiveCount.fetch_sub(1) == 1) {
-            if (!mDown.exchange(true)) {
+            if (!mDown.exchange(true, std::memory_order_acq_rel)) {
                 mDownstream->onComplete();
             }
         }
@@ -156,7 +151,7 @@ public:
 
     void innerError(const GAnyException &e)
     {
-        if (mDown.exchange(true)) {
+        if (mDown.exchange(true, std::memory_order_acq_rel)) {
             return;
         }
         dispose();
@@ -167,7 +162,7 @@ public:
     {
         removeInner(id);
         if (mActiveCount.fetch_sub(1) == 1) {
-            if (!mDown.exchange(true)) {
+            if (!mDown.exchange(true, std::memory_order_acq_rel)) {
                 mDownstream->onComplete();
             }
         }

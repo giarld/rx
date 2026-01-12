@@ -6,6 +6,7 @@
 
 #include "../observable.h"
 #include "../scheduler.h"
+#include "../disposables/disposable_helper.h"
 #include "gx/gmutex.h"
 #include <queue>
 #include <atomic>
@@ -26,7 +27,7 @@ public:
 public:
     void onSubscribe(const DisposablePtr &d) override
     {
-        if (Disposable::validate(mUpstream.get(), d.get())) {
+        if (DisposableHelper::validate(mUpstream, d)) {
             mUpstream = d;
             mDownstream->onSubscribe(this->shared_from_this());
         }

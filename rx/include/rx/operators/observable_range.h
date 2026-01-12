@@ -10,7 +10,7 @@
 
 namespace rx
 {
-class RangeDisposable : public Disposable
+class RangeDisposable : public AtomicDisposable
 {
 public:
     explicit RangeDisposable(const ObserverPtr &observer, int64_t start, int64_t end)
@@ -33,21 +33,10 @@ public:
         }
     }
 
-    void dispose() override
-    {
-        mDisposed.store(true, std::memory_order_release);
-    }
-
-    bool isDisposed() const override
-    {
-        return mDisposed.load(std::memory_order_acquire);
-    }
-
 private:
     std::weak_ptr<Observer> mDownstream;
     int64_t mStart;
     int64_t mEnd;
-    std::atomic<bool> mDisposed = false;
 };
 
 class ObservableRange : public Observable

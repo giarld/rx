@@ -6,6 +6,7 @@
 #define RX_OBSERVABLE_BUFFER_H
 
 #include "../observable.h"
+#include "../disposables/disposable_helper.h"
 
 
 namespace rx
@@ -23,7 +24,7 @@ public:
 public:
     void onSubscribe(const DisposablePtr &d) override
     {
-        if (Disposable::validate(mUpstream.get(), d.get())) {
+        if (DisposableHelper::validate(mUpstream, d)) {
             mUpstream = d;
             mDownstream->onSubscribe(this->shared_from_this());
         }
@@ -96,7 +97,7 @@ public:
 public:
     void onSubscribe(const DisposablePtr &d) override
     {
-        if (Disposable::validate(mUpstream.get(), d.get())) {
+        if (DisposableHelper::validate(mUpstream, d)) {
             mUpstream = d;
             mDownstream->onSubscribe(this->shared_from_this());
         }

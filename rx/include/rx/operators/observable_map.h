@@ -23,7 +23,7 @@ public:
 public:
     void onSubscribe(const DisposablePtr &d) override
     {
-        if (Disposable::validate(mUpstream.get(), d.get())) {
+        if (DisposableHelper::validate(mUpstream, d)) {
             mUpstream = d;
             mDownstream->onSubscribe(this->shared_from_this());
         }
@@ -31,7 +31,7 @@ public:
 
     void onNext(const GAny &value) override
     {
-        if (mDown.load()) {
+        if (mDown.load(std::memory_order_acquire)) {
             return;
         }
         GAny r;
@@ -47,10 +47,9 @@ public:
 
     void onError(const GAnyException &e) override
     {
-        if (mDown.load()) {
+        if (mDown.exchange(true, std::memory_order_acq_rel)) {
             return;
         }
-        mDown.store(true, std::memory_order_release);
         mDownstream->onError(e);
 
         mDownstream = nullptr;
@@ -59,10 +58,9 @@ public:
 
     void onComplete() override
     {
-        if (mDown.load()) {
+        if (mDown.exchange(true, std::memory_order_acq_rel)) {
             return;
         }
-        mDown.store(true, std::memory_order_release);
         mDownstream->onComplete();
 
         mDownstream = nullptr;

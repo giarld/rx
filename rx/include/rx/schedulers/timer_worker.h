@@ -26,17 +26,17 @@ public:
 public:
     void dispose() override
     {
-        mDisposed = true;
+        mDisposed.store(true, std::memory_order::memory_order_release);
     }
 
     bool isDisposed() const override
     {
-        return mDisposed.load();
+        return mDisposed.load(std::memory_order_acquire);
     }
 
     DisposablePtr schedule(const WorkerRunnable &run, uint64_t delay) override
     {
-        if (!mDisposed) {
+        if (!mDisposed.load(std::memory_order_acquire)) {
             mTimerScheduler->post([run] {
                 run();
             }, delay);

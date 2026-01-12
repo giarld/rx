@@ -6,7 +6,7 @@
 #define RX_OBSERVABLE_CREATE_H
 
 #include "../observable.h"
-#include <gx/gmutex.h>
+#include "../disposables/disposable_helper.h"
 
 
 namespace rx
@@ -15,7 +15,7 @@ class CreateEmitter : public ObservableEmitter, public Disposable
 {
 public:
     explicit CreateEmitter(const ObserverPtr &observer)
-        : mDownstream(observer), mDisposable(std::make_shared<AtomicDisposable>())
+        : mDownstream(observer)
     {
     }
 
@@ -63,28 +63,24 @@ public:
 
     void dispose() override
     {
-        if (const auto d = mDisposable) {
-            d->dispose();
-            mDownstream.reset();
-        }
+        DisposableHelper::dispose(mDisposable, mLock);
+        mDownstream.reset();
     }
 
     bool isDisposed() const override
     {
-        if (const auto d = mDisposable) {
-            return d->isDisposed();
-        }
-        return true;
+        return DisposableHelper::isDisposed(mDisposable);
     }
 
     void setDisposable(const DisposablePtr &d) override
     {
-        mDisposable = d;
+        DisposableHelper::set(mDisposable, d, mLock);
     }
 
 private:
     std::weak_ptr<Observer> mDownstream;
     DisposablePtr mDisposable = nullptr;
+    GMutex mLock;
 };
 
 
