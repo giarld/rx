@@ -78,6 +78,8 @@ public:
 
     std::shared_ptr<Observable> buffer(uint64_t count);
 
+    std::shared_ptr<Observable> repeat(uint64_t times);
+
 
     std::shared_ptr<Observable> filter(const FilterFunction &filter);
 

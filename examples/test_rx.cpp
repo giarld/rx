@@ -29,31 +29,32 @@ int main(int argc, char **argv)
     auto threadScheduler = NewThreadScheduler::create();
     auto timerScheduler = MainThreadScheduler::create();
     Observable::create([&](const ObservableEmitterPtr &emitter) {
-            emitter->onNext(123);
-            emitter->onNext("234");
-            // throw GAnyException("Error");
-            // emitter->onError(GAnyException("Error"));
-            mainScheduler->post([emitter] {
-                emitter->onNext(345);
-                emitter->onComplete();
-            }, 1000);
-        })
-        ->map([](const GAny &x) {
-            // GThread::sleep(1);
-            return x + 1;
-        })
-        ->subscribeOn(threadScheduler)
-        ->observeOn(timerScheduler)
-        ->subscribe([](const GAny &v) {
-                        Log(">>>>> {}", v.toString());
-                    }, [](const GAnyException &e) {
-                        LogE("Exception: {}", e.toString());
-                    }, [&]() {
-                        Log("Completed!!");
-                        mainScheduler->post([&] {
-                            mainScheduler->stop();
-                        }, 1);
-                    });
+                emitter->onNext(123);
+                emitter->onNext("234");
+                // throw GAnyException("Error");
+                // emitter->onError(GAnyException("Error"));
+                mainScheduler->post([emitter] {
+                    emitter->onNext(345);
+                    emitter->onComplete();
+                }, 1000);
+            })
+            ->map([](const GAny &x) {
+                // GThread::sleep(1);
+                return x + 1;
+            })
+            ->repeat(2)
+            ->subscribeOn(threadScheduler)
+            ->observeOn(timerScheduler)
+            ->subscribe([](const GAny &v) {
+                            Log(">>>>> {}", v.toString());
+                        }, [](const GAnyException &e) {
+                            LogE("Exception: {}", e.toString());
+                        }, [&]() {
+                            Log("Completed!!");
+                            mainScheduler->post([&] {
+                                mainScheduler->stop();
+                            }, 1);
+                        });
 
     mainScheduler->run();
 
@@ -85,30 +86,31 @@ int main(int argc, char **argv)
     //                 }, []() {
     //                     Log("Empty Completed!!");
     //                 });
-    //
+
     Observable::just(10)
-        // ->map([](const GAny &x) {
-        //     GAny v = GAny::array();
-        //     for (int32_t i = 0; i < x.toInt32(); ++i) {
-        //         v.pushBack(i);
-        //     }
-        //     Log("Map: v = {}", v.toString());
-        //     return v;
-        // })
-        ->flatMap([](const GAny &v) {
-            return Observable::range(0, v.toInt32());
-        })
-        ->filter([](const GAny &v) {
-            return v.toInt32() % 2 == 0;
-        })
-        ->buffer(10)
-        ->subscribe([](const GAny &v) {
-                        Log("Output: {}", v.toString());
-                    }, [](const GAnyException &e) {
-                        LogE("Exception: {}", e.toString());
-                    }, []() {
-                        Log("Completed!!");
-                    });
+            // ->map([](const GAny &x) {
+            //     GAny v = GAny::array();
+            //     for (int32_t i = 0; i < x.toInt32(); ++i) {
+            //         v.pushBack(i);
+            //     }
+            //     Log("Map: v = {}", v.toString());
+            //     return v;
+            // })
+            ->repeat(10)
+            ->flatMap([](const GAny &v) {
+                return Observable::range(0, v.toInt32());
+            })
+            ->filter([](const GAny &v) {
+                return v.toInt32() % 2 == 0;
+            })
+            ->buffer(10)
+            ->subscribe([](const GAny &v) {
+                            Log("Output: {}", v.toString());
+                        }, [](const GAnyException &e) {
+                            LogE("Exception: {}", e.toString());
+                        }, []() {
+                            Log("Completed!!");
+                        });
 
     return EXIT_SUCCESS;
 }

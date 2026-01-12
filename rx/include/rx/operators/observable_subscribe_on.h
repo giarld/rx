@@ -36,11 +36,17 @@ public:
     void onError(const GAnyException &e) override
     {
         mDownstream->onError(e);
+
+        mUpstream = nullptr;
+        mDownstream = nullptr;
     }
 
     void onComplete() override
     {
         mDownstream->onComplete();
+
+        mUpstream = nullptr;
+        mDownstream = nullptr;
     }
 
     void dispose() override

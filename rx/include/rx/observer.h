@@ -5,7 +5,7 @@
 #ifndef RX_OBSERVER_H
 #define RX_OBSERVER_H
 
-#include "disposable.h"
+#include "disposables/atomic_disposable.h"
 
 #include <gx/gany.h>
 

@@ -97,7 +97,6 @@ public:
         if (!mDisposed.exchange(true, std::memory_order_acq_rel)) {
             if (const auto up = mUpstream) {
                 up->dispose();
-                mUpstream = nullptr;
             }
             disposeWorker();
 
@@ -108,11 +107,14 @@ public:
         }
     }
 
-    void disposeWorker() const
+    void disposeWorker()
     {
         if (const auto w = mWorker) {
             w->dispose();
         }
+        mWorker = nullptr;
+        mDownstream = nullptr;
+        mUpstream = nullptr;
     }
 
     bool isDisposed() const override
