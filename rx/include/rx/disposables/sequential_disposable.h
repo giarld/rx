@@ -7,6 +7,7 @@
 
 #include "../disposables/atomic_disposable.h"
 #include "../disposables/disposable_helper.h"
+#include "../leak_observer.h"
 #include <memory>
 
 
@@ -18,14 +19,19 @@ public:
     explicit SequentialDisposable()
         : mDisposable(std::make_shared<AtomicDisposable>())
     {
+        LeakObserver::make<SequentialDisposable>();
     }
 
     explicit SequentialDisposable(const DisposablePtr &initial)
         : mDisposable(initial)
     {
+        LeakObserver::make<SequentialDisposable>();
     }
 
-    ~SequentialDisposable() override = default;
+    ~SequentialDisposable() override
+    {
+        LeakObserver::release<SequentialDisposable>();
+    }
 
 public:
     bool update(const DisposablePtr &next)

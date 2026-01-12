@@ -8,9 +8,9 @@
 #include "scheduled_direct_task.h"
 #include "../scheduler.h"
 #include "../operators/observable_empty.h"
+#include "../leak_observer.h"
 
 #include <gx/gtasksystem.h>
-#include <gx/gtimer.h>
 
 
 namespace rx
@@ -20,10 +20,14 @@ class TaskSystemWorker : public Worker
 public:
     explicit TaskSystemWorker(GTaskSystem *taskSystem)
     {
+        LeakObserver::make<TaskSystemWorker>();
         mTaskSystem = taskSystem;
     }
 
-    ~TaskSystemWorker() override = default;
+    ~TaskSystemWorker() override
+    {
+        LeakObserver::release<TaskSystemWorker>();
+    }
 
 public:
     void dispose() override

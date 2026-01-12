@@ -6,6 +6,7 @@
 #define RX_OBSERVABLE_MAP_H
 
 #include "../observable.h"
+#include "../leak_observer.h"
 
 
 namespace rx
@@ -16,9 +17,13 @@ public:
     explicit MapObserver(const ObserverPtr &observer, const MapFunction &function)
         : mDownstream(observer), mFunction(function)
     {
+        LeakObserver::make<MapObserver>();
     }
 
-    ~MapObserver() override = default;
+    ~MapObserver() override
+    {
+        LeakObserver::release<MapObserver>();
+    }
 
 public:
     void onSubscribe(const DisposablePtr &d) override
@@ -97,9 +102,13 @@ public:
     explicit ObservableMap(ObservableSourcePtr source, const MapFunction &function)
         : mSource(std::move(source)), mMapFunction(function)
     {
+        LeakObserver::make<ObservableMap>();
     }
 
-    ~ObservableMap() override = default;
+    ~ObservableMap() override
+    {
+        LeakObserver::release<ObservableMap>();
+    }
 
 protected:
     void subscribeActual(const ObserverPtr &observer) override

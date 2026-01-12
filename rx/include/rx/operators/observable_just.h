@@ -6,6 +6,7 @@
 #define RX_OBSERVABLE_JUST_H
 
 #include "../observable.h"
+#include "../leak_observer.h"
 
 
 namespace rx
@@ -16,9 +17,13 @@ public:
     explicit JustDisposable(const ObserverPtr &observer, const GAny &value)
         : mDownstream(observer), mValue(value)
     {
+        LeakObserver::make<JustDisposable>();
     }
 
-    ~JustDisposable() override = default;
+    ~JustDisposable() override
+    {
+        LeakObserver::release<JustDisposable>();
+    }
 
 public:
     void dispose() override
@@ -53,9 +58,13 @@ public:
     explicit ObservableJust(const GAny &value)
         : mValue(value)
     {
+        LeakObserver::make<ObservableJust>();
     }
 
-    ~ObservableJust() override = default;
+    ~ObservableJust() override
+    {
+        LeakObserver::release<ObservableJust>();
+    }
 
 protected:
     void subscribeActual(const ObserverPtr &observer) override

@@ -8,6 +8,7 @@
 #include "scheduled_direct_timer.h"
 #include "../scheduler.h"
 #include "../operators/observable_empty.h"
+#include "../leak_observer.h"
 
 #include <gx/gtimer.h>
 
@@ -19,9 +20,14 @@ class TimerWorker : public Worker
 public:
     explicit TimerWorker(const GTimerSchedulerPtr &timerScheduler)
         : mTimerScheduler(timerScheduler)
-    {}
+    {
+        LeakObserver::make<TimerWorker>();
+    }
 
-    ~TimerWorker() override = default;
+    ~TimerWorker() override
+    {
+        LeakObserver::release<TimerWorker>();
+    }
 
 public:
     void dispose() override

@@ -6,6 +6,7 @@
 #define RX_OBSERVER_H
 
 #include "disposables/atomic_disposable.h"
+#include "leak_observer.h"
 
 #include <gx/gany.h>
 
@@ -47,9 +48,13 @@ public:
           mOnSubscribeAction(subscribe),
           mDisposable(std::make_shared<AtomicDisposable>())
     {
+        LeakObserver::make<LambdaObserver>();
     }
 
-    ~LambdaObserver() override = default;
+    ~LambdaObserver() override
+    {
+        LeakObserver::release<LambdaObserver>();
+    }
 
     void onSubscribe(const DisposablePtr &d) override
     {

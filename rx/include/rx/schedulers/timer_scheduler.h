@@ -6,6 +6,7 @@
 #define RX_TIMER_SCHEDULER_H
 
 #include "timer_worker.h"
+#include "../leak_observer.h"
 
 
 namespace rx
@@ -16,9 +17,13 @@ public:
     explicit TimerScheduler(const GTimerSchedulerPtr &timerScheduler)
         : mTimerScheduler(timerScheduler)
     {
+        LeakObserver::make<TimerScheduler>();
     }
 
-    ~TimerScheduler() override = default;
+    ~TimerScheduler() override
+    {
+        LeakObserver::release<TimerScheduler>();
+    }
 
     static std::shared_ptr<TimerScheduler> create(const GTimerSchedulerPtr &timerScheduler)
     {

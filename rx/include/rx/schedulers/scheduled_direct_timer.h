@@ -6,6 +6,7 @@
 #define RX_SCHEDULED_DIRECT_TIMER_H
 
 #include "../scheduler.h"
+#include "../leak_observer.h"
 
 #include <gx/gtimer.h>
 
@@ -18,9 +19,13 @@ public:
     explicit ScheduledDirectTimer(const GTimerSchedulerPtr &scheduler, const WorkerRunnable &runnable)
         : GTimer(scheduler, true), mRunnable(runnable)
     {
+        LeakObserver::make<ScheduledDirectTimer>();
     }
 
-    ~ScheduledDirectTimer() override = default;
+    ~ScheduledDirectTimer() override
+    {
+        LeakObserver::release<ScheduledDirectTimer>();
+    }
 
 public:
     void timeout() override

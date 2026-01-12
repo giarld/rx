@@ -6,6 +6,7 @@
 #define RX_OBSERVABLE_RANGE_H
 
 #include "../observable.h"
+#include "../leak_observer.h"
 
 
 namespace rx
@@ -16,9 +17,13 @@ public:
     explicit RangeDisposable(const ObserverPtr &observer, int64_t start, int64_t end)
         : mDownstream(observer), mStart(start), mEnd(end)
     {
+        LeakObserver::make<RangeDisposable>();
     }
 
-    ~RangeDisposable() override = default;
+    ~RangeDisposable() override
+    {
+        LeakObserver::release<RangeDisposable>();
+    }
 
 public:
     void run() const
@@ -45,9 +50,13 @@ public:
     explicit ObservableRange(int64_t start, uint64_t count)
         : mStart(start), mEnd(start + count)
     {
+        LeakObserver::make<ObservableRange>();
     }
 
-    ~ObservableRange() override = default;
+    ~ObservableRange() override
+    {
+        LeakObserver::release<ObservableRange>();
+    }
 
 protected:
     void subscribeActual(const ObserverPtr &observer) override

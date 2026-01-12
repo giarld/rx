@@ -6,6 +6,7 @@
 #define RX_OBSERVABLE_FROM_ARRAY_H
 
 #include "../observable.h"
+#include "../leak_observer.h"
 
 
 namespace rx
@@ -16,9 +17,13 @@ public:
     explicit FromArrayDisposable(const ObserverPtr &observer, const std::vector<GAny> &array)
         : mDownstream(observer), mArray(array)
     {
+        LeakObserver::make<FromArrayDisposable>();
     }
 
-    ~FromArrayDisposable() override = default;
+    ~FromArrayDisposable() override
+    {
+        LeakObserver::release<FromArrayDisposable>();
+    }
 
 public:
     void run() const
@@ -55,9 +60,13 @@ public:
     explicit ObservableFromArray(const std::vector<GAny> &array)
         : mArray(array)
     {
+        LeakObserver::make<ObservableFromArray>();
     }
 
-    ~ObservableFromArray() override = default;
+    ~ObservableFromArray() override
+    {
+        LeakObserver::release<ObservableFromArray>();
+    }
 
 protected:
     void subscribeActual(const ObserverPtr &observer) override

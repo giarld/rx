@@ -7,6 +7,7 @@
 
 #include "../observable.h"
 #include "observable_empty.h"
+#include "../leak_observer.h"
 
 
 namespace rx
@@ -17,9 +18,13 @@ public:
     explicit ObservableError(const GAnyException &e)
         : mError(e)
     {
+        LeakObserver::make<ObservableError>();
     }
 
-    ~ObservableError() override = default;
+    ~ObservableError() override
+    {
+        LeakObserver::release<ObservableError>();
+    }
 
 protected:
     void subscribeActual(const ObserverPtr &observer) override

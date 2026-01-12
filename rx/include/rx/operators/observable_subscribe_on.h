@@ -8,6 +8,7 @@
 #include "../observable.h"
 #include "../scheduler.h"
 #include "../disposables/disposable_helper.h"
+#include "../leak_observer.h"
 
 
 namespace rx
@@ -18,9 +19,13 @@ public:
     explicit SubscribeOnObserver(const ObserverPtr &observer)
         : mDownstream(observer)
     {
+        LeakObserver::make<SubscribeOnObserver>();
     }
 
-    ~SubscribeOnObserver() override = default;
+    ~SubscribeOnObserver() override
+    {
+        LeakObserver::release<SubscribeOnObserver>();
+    }
 
 public:
     void onSubscribe(const DisposablePtr &d) override
@@ -78,9 +83,13 @@ public:
     explicit ObservableSubscribeOn(const ObservableSourcePtr &source, SchedulerPtr scheduler)
         : mSource(source), mScheduler(std::move(scheduler))
     {
+        LeakObserver::make<ObservableSubscribeOn>();
     }
 
-    ~ObservableSubscribeOn() override = default;
+    ~ObservableSubscribeOn() override
+    {
+        LeakObserver::release<ObservableSubscribeOn>();
+    }
 
 protected:
     void subscribeActual(const ObserverPtr &observer) override

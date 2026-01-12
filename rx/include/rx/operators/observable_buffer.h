@@ -7,6 +7,7 @@
 
 #include "../observable.h"
 #include "../disposables/disposable_helper.h"
+#include "../leak_observer.h"
 
 
 namespace rx
@@ -17,9 +18,13 @@ public:
     explicit BufferExactObserver(const ObserverPtr &observer, uint64_t count)
         : mDownstream(observer), mCount(count)
     {
+        LeakObserver::make<BufferExactObserver>();
     }
 
-    ~BufferExactObserver() override = default;
+    ~BufferExactObserver() override
+    {
+        LeakObserver::release<BufferExactObserver>();
+    }
 
 public:
     void onSubscribe(const DisposablePtr &d) override
@@ -90,9 +95,13 @@ public:
     explicit BufferSkipObserver(const ObserverPtr &observer, uint64_t count, uint64_t skip)
         : mDownstream(observer), mCount(count), mSkip(skip)
     {
+        LeakObserver::make<BufferSkipObserver>();
     }
 
-    ~BufferSkipObserver() override = default;
+    ~BufferSkipObserver() override
+    {
+        LeakObserver::release<BufferSkipObserver>();
+    }
 
 public:
     void onSubscribe(const DisposablePtr &d) override
@@ -175,9 +184,13 @@ public:
     explicit ObservableBuffer(ObservableSourcePtr source, uint64_t count, uint64_t skip)
         : mSource(source), mCount(count), mSkip(skip)
     {
+        LeakObserver::make<ObservableBuffer>();
     }
 
-    ~ObservableBuffer() override = default;
+    ~ObservableBuffer() override
+    {
+        LeakObserver::release<ObservableBuffer>();
+    }
 
 protected:
     void subscribeActual(const ObserverPtr &observer) override

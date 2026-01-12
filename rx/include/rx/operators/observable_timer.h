@@ -6,6 +6,7 @@
 #define RX_OBSERVABLE_TIMER_H
 
 #include "../observable.h"
+#include "../leak_observer.h"
 
 #include "gx/gtimer.h"
 
@@ -18,9 +19,13 @@ public:
     explicit TimerObserver(const ObserverPtr &observer)
         : GTimer(false), mDownstream(observer)
     {
+        LeakObserver::make<TimerObserver>();
     }
 
-    ~TimerObserver() override = default;
+    ~TimerObserver() override
+    {
+        LeakObserver::release<TimerObserver>();
+    }
 
 public:
     void timeout() override
@@ -51,9 +56,13 @@ public:
     explicit ObservableTimer(uint64_t delay)
         : mDelay(delay)
     {
+        LeakObserver::make<ObservableTimer>();
     }
 
-    ~ObservableTimer() override = default;
+    ~ObservableTimer() override
+    {
+        LeakObserver::release<ObservableTimer>();
+    }
 
 protected:
     void subscribeActual(const ObserverPtr &observer) override

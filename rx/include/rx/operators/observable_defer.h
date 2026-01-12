@@ -6,6 +6,7 @@
 #define RX_OBSERVABLE_DEFER_H
 
 #include "../observable.h"
+#include "../leak_observer.h"
 
 
 namespace rx
@@ -15,9 +16,14 @@ class ObservableDefer : public Observable
 public:
     explicit ObservableDefer(const ObservableSourcePtr &source)
         : mSource(source)
-    {}
+    {
+        LeakObserver::make<ObservableDefer>();
+    }
 
-    ~ObservableDefer() override = default;
+    ~ObservableDefer() override
+    {
+        LeakObserver::release<ObservableDefer>();
+    }
 
 protected:
     void subscribeActual(const ObserverPtr &observer) override

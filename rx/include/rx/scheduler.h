@@ -6,7 +6,7 @@
 #define RX_SCHEDULER_H
 
 #include "disposable.h"
-#include <gx/gany.h>
+#include "leak_observer.h"
 #include <gx/gthread.h>
 #include <gx/gtime.h>
 
@@ -43,9 +43,13 @@ public:
     explicit DisposeTask(const WorkerPtr &worker)
         : mWorker(worker)
     {
+        LeakObserver::make<DisposeTask>();
     }
 
-    ~DisposeTask() override = default;
+    ~DisposeTask() override
+    {
+        LeakObserver::release<DisposeTask>();
+    }
 
 public:
     void dispose() override

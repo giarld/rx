@@ -7,6 +7,7 @@
 
 #include "../observable.h"
 #include "../disposables/disposable_helper.h"
+#include "../leak_observer.h"
 
 
 namespace rx
@@ -17,9 +18,13 @@ public:
     explicit CreateEmitter(const ObserverPtr &observer)
         : mDownstream(observer)
     {
+        LeakObserver::make<CreateEmitter>();
     }
 
-    ~CreateEmitter() override = default;
+    ~CreateEmitter() override
+    {
+        LeakObserver::release<CreateEmitter>();
+    }
 
 public:
     void onNext(const GAny &value) override
@@ -87,12 +92,16 @@ private:
 class ObservableCreate : public Observable
 {
 public:
-    ~ObservableCreate() override = default;
+    ~ObservableCreate() override
+    {
+        LeakObserver::release<ObservableCreate>();
+    }
 
 public:
     explicit ObservableCreate(ObservableOnSubscribe source)
         : mSource(std::move(source))
     {
+        LeakObserver::make<ObservableCreate>();
     }
 
 protected:

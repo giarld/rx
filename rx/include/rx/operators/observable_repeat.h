@@ -7,6 +7,7 @@
 
 #include "../observable.h"
 #include "../disposables/sequential_disposable.h"
+#include "../leak_observer.h"
 
 
 namespace rx
@@ -17,9 +18,13 @@ public:
     explicit RepeatObserver(const ObserverPtr &observer, int64_t count, const SequentialDisposablePtr &sd, const ObservableSourcePtr &source)
         : mDownstream(observer), mSd(sd), mSource(source), mRemaining(count)
     {
+        LeakObserver::make<RepeatObserver>();
     }
 
-    ~RepeatObserver() override = default;
+    ~RepeatObserver() override
+    {
+        LeakObserver::release<RepeatObserver>();
+    }
 
 public:
     void onSubscribe(const DisposablePtr &d) override
@@ -98,9 +103,13 @@ public:
     explicit ObservableRepeat(ObservableSourcePtr source, uint64_t times)
         : mSource(std::move(source)), mTimes(times)
     {
+        LeakObserver::make<ObservableRepeat>();
     }
 
-    ~ObservableRepeat() override = default;
+    ~ObservableRepeat() override
+    {
+        LeakObserver::release<ObservableRepeat>();
+    }
 
 protected:
     void subscribeActual(const ObserverPtr &observer) override

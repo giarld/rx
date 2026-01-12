@@ -6,6 +6,7 @@
 #define RX_OBSERVABLE_INTERVAL_H
 
 #include "../observable.h"
+#include "../leak_observer.h"
 
 #include "gx/gtimer.h"
 
@@ -18,9 +19,13 @@ public:
     explicit IntervalObserver(const ObserverPtr &observer)
         : mDownstream(observer)
     {
+        LeakObserver::make<IntervalObserver>();
     }
 
-    ~IntervalObserver() override = default;
+    ~IntervalObserver() override
+    {
+        LeakObserver::release<IntervalObserver>();
+    }
 
 public:
     void timeout() override
@@ -54,9 +59,13 @@ public:
     explicit ObservableInterval(uint64_t delay, uint64_t interval)
         : mDelay(delay), mInterval(interval)
     {
+        LeakObserver::make<ObservableInterval>();
     }
 
-    ~ObservableInterval() override = default;
+    ~ObservableInterval() override
+    {
+        LeakObserver::release<ObservableInterval>();
+    }
 
 protected:
     void subscribeActual(const ObserverPtr &observer) override

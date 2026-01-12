@@ -54,9 +54,13 @@ class ObservableEmpty : public Observable
 public:
     explicit ObservableEmpty()
     {
+        LeakObserver::make<ObservableEmpty>();
     }
 
-    ~ObservableEmpty() override = default;
+    ~ObservableEmpty() override
+    {
+        LeakObserver::release<ObservableEmpty>();
+    }
 
 protected:
     void subscribeActual(const ObserverPtr &observer) override

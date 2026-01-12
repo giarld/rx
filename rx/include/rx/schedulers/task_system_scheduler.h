@@ -6,6 +6,7 @@
 #define RX_TASK_SYSTEM_SCHEDULER_H
 
 #include "task_system_worker.h"
+#include "../leak_observer.h"
 #include <gx/gtasksystem.h>
 
 
@@ -17,9 +18,13 @@ public:
     explicit TaskSystemScheduler(GTaskSystem *taskSystem)
         : mTaskSystem(taskSystem)
     {
+        LeakObserver::make<TaskSystemScheduler>();
     }
 
-    ~TaskSystemScheduler() override = default;
+    ~TaskSystemScheduler() override
+    {
+        LeakObserver::release<TaskSystemScheduler>();
+    }
 
     static std::shared_ptr<TaskSystemScheduler> create(GTaskSystem *taskSystem)
     {

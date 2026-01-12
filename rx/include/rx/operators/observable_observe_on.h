@@ -7,6 +7,7 @@
 #include "../observable.h"
 #include "../scheduler.h"
 #include "../disposables/disposable_helper.h"
+#include "../leak_observer.h"
 #include "gx/gmutex.h"
 #include <queue>
 #include <atomic>
@@ -20,9 +21,13 @@ public:
     explicit ObserveOnObserver(const ObserverPtr &observer, const WorkerPtr &worker)
         : mDownstream(observer), mWorker(worker)
     {
+        LeakObserver::make<ObserveOnObserver>();
     }
 
-    ~ObserveOnObserver() override = default;
+    ~ObserveOnObserver() override
+    {
+        LeakObserver::release<ObserveOnObserver>();
+    }
 
 public:
     void onSubscribe(const DisposablePtr &d) override
@@ -193,9 +198,13 @@ public:
     explicit ObservableObserveOn(const ObservableSourcePtr &source, SchedulerPtr scheduler)
         : mSource(source), mScheduler(std::move(scheduler))
     {
+        LeakObserver::make<ObservableObserveOn>();
     }
 
-    ~ObservableObserveOn() override = default;
+    ~ObservableObserveOn() override
+    {
+        LeakObserver::release<ObservableObserveOn>();
+    }
 
 protected:
     void subscribeActual(const ObserverPtr &observer) override

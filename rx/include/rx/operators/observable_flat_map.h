@@ -7,6 +7,7 @@
 
 #include "../observable.h"
 #include "../disposables/disposable_helper.h"
+#include "../leak_observer.h"
 #include <map>
 #include <atomic>
 
@@ -21,9 +22,13 @@ public:
     explicit InnerObserver(const std::shared_ptr<FlatMapObserver> &parent, uint64_t id)
         : mParent(parent), mId(id)
     {
+        LeakObserver::make<InnerObserver>();
     }
 
-    ~InnerObserver() override = default;
+    ~InnerObserver() override
+    {
+        LeakObserver::release<InnerObserver>();
+    }
 
     void onSubscribe(const DisposablePtr &d) override
     {
@@ -61,10 +66,14 @@ public:
     explicit FlatMapObserver(const ObserverPtr &observer, const FlatMapFunction &function)
         : mDownstream(observer), mFunction(function)
     {
+        LeakObserver::make<FlatMapObserver>();
         mActiveCount.store(1);
     }
 
-    ~FlatMapObserver() override = default;
+    ~FlatMapObserver() override
+    {
+        LeakObserver::release<FlatMapObserver>();
+    }
 
 public:
     void onSubscribe(const DisposablePtr &d) override
@@ -205,9 +214,13 @@ public:
     explicit ObservableFlatMap(const ObservableSourcePtr &source, const FlatMapFunction &function)
         : mSource(source), mFunction(function)
     {
+        LeakObserver::make<ObservableFlatMap>();
     }
 
-    ~ObservableFlatMap() override = default;
+    ~ObservableFlatMap() override
+    {
+        LeakObserver::release<ObservableFlatMap>();
+    }
 
 protected:
     void subscribeActual(const ObserverPtr &observer) override

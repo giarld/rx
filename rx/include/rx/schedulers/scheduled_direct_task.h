@@ -6,6 +6,7 @@
 #define RX_SCHEDULED_DIRECT_TASK_H
 
 #include "../scheduler.h"
+#include "../leak_observer.h"
 
 #include <gx/gtasksystem.h>
 
@@ -18,9 +19,13 @@ public:
     explicit ScheduledDirectTask(GTaskSystem::Task<bool> &&task)
         : mTask(std::move(task))
     {
+        LeakObserver::make<ScheduledDirectTask>();
     }
 
-    ~ScheduledDirectTask() override = default;
+    ~ScheduledDirectTask() override
+    {
+        LeakObserver::release<ScheduledDirectTask>();
+    }
 
 public:
     void dispose() override

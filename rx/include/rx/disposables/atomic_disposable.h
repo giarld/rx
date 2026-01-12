@@ -6,6 +6,7 @@
 #define RX_ATOMIC_DISPOSABLE_H
 
 #include "../disposable.h"
+#include "../leak_observer.h"
 
 #include <atomic>
 
@@ -17,9 +18,13 @@ class AtomicDisposable : public Disposable
 public:
     explicit AtomicDisposable()
     {
+        LeakObserver::make<AtomicDisposable>();
     }
 
-    ~AtomicDisposable() override = default;
+    ~AtomicDisposable() override
+    {
+        LeakObserver::release<AtomicDisposable>();
+    }
 
 public:
     void dispose() override

@@ -6,6 +6,7 @@
 #define RX_NEW_THREAD_SCHEDULER_H
 
 #include "task_system_scheduler.h"
+#include "../leak_observer.h"
 
 
 namespace rx
@@ -16,6 +17,7 @@ public:
     explicit NewThreadScheduler(ThreadPriority threadPriority)
         : TaskSystemScheduler(nullptr), mTaskSystemPtr(std::make_unique<GTaskSystem>("NewThreadScheduler_Thread", 1))
     {
+        LeakObserver::make<NewThreadScheduler>();
         mTaskSystem = mTaskSystemPtr.get();
         mTaskSystem->setThreadPriority(threadPriority);
         mTaskSystem->start();
@@ -23,6 +25,7 @@ public:
 
     ~NewThreadScheduler() override
     {
+        LeakObserver::release<NewThreadScheduler>();
         mTaskSystemPtr->stop();
         mTaskSystemPtr = nullptr;
     }

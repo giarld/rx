@@ -7,6 +7,7 @@
 
 #include "../observable.h"
 #include "../disposables/disposable_helper.h"
+#include "../leak_observer.h"
 
 
 namespace rx
@@ -16,9 +17,14 @@ class FilterObserver : public Observer, public Disposable, public std::enable_sh
 public:
     explicit FilterObserver(const ObserverPtr &observer, const FilterFunction &filter)
         : mFilter(filter), mDownstream(observer)
-    {}
+    {
+        LeakObserver::make<FilterObserver>();
+    }
 
-    ~FilterObserver() override = default;
+    ~FilterObserver() override
+    {
+        LeakObserver::release<FilterObserver>();
+    }
 
 public:
     void onSubscribe(const DisposablePtr &d) override
@@ -100,9 +106,13 @@ public:
     explicit ObservableFilter(ObservableSourcePtr source, const FilterFunction &filter)
         : mSource(std::move(source)), mFilter(filter)
     {
+        LeakObserver::make<ObservableFilter>();
     }
 
-    ~ObservableFilter() override = default;
+    ~ObservableFilter() override
+    {
+        LeakObserver::release<ObservableFilter>();
+    }
 
 protected:
     void subscribeActual(const ObserverPtr &observer) override

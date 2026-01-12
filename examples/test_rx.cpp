@@ -14,20 +14,14 @@
 
 using namespace rx;
 
-int main(int argc, char **argv)
+void test()
 {
-#if GX_PLATFORM_WINDOWS
-    system("chcp 65001>nul");
-#endif
-
-    initGAnyCore();
-
-    auto mainScheduler = GTimerScheduler::create("MainScheduler");
+    const auto mainScheduler = GTimerScheduler::create("MainScheduler");
     mainScheduler->start();
     GTimerScheduler::makeGlobal(mainScheduler);
 
-    auto threadScheduler = NewThreadScheduler::create();
-    auto timerScheduler = MainThreadScheduler::create();
+    const auto threadScheduler = NewThreadScheduler::create();
+    const auto timerScheduler = MainThreadScheduler::create();
     Observable::create([&](const ObservableEmitterPtr &emitter) {
                 emitter->onNext(123);
                 emitter->onNext("234");
@@ -59,33 +53,33 @@ int main(int argc, char **argv)
     mainScheduler->run();
 
 
-    // Observable::just(1, 2, 3)
-    //     ->buffer(1)
-    //     ->flatMap([](const GAny &v) {
-    //         return Observable::just(v);
-    //     })
-    //     ->subscribe([](const GAny &v) {
-    //                     Log(">>>>> {}", v.toString());
-    //                 }, [](const GAnyException &e) {
-    //                     LogE("Exception: {}", e.toString());
-    //                 }, [&]() {
-    //                     Log("Completed!!");
-    //                 });
-    //
-    //
-    // auto source = Observable::just("Hello", "World", "A", "B", "C");
-    // Observable::defer(source)->subscribe([](const GAny &v) {
-    //     Log("Just output: {}", v.toString());
-    // });
-    //
-    //
-    // Observable::empty()
-    //     ->subscribe([](const GAny &v) {
-    //                 }, [](const GAnyException &e) {
-    //                     LogE("Empty Exception: {}", e.toString());
-    //                 }, []() {
-    //                     Log("Empty Completed!!");
-    //                 });
+    Observable::just(1, 2, 3)
+            ->buffer(1)
+            ->flatMap([](const GAny &v) {
+                return Observable::just(v);
+            })
+            ->subscribe([](const GAny &v) {
+                            Log(">>>>> {}", v.toString());
+                        }, [](const GAnyException &e) {
+                            LogE("Exception: {}", e.toString());
+                        }, [&]() {
+                            Log("Completed!!");
+                        });
+
+
+    auto source = Observable::just("Hello", "World", "A", "B", "C");
+    Observable::defer(source)->subscribe([](const GAny &v) {
+        Log("Just output: {}", v.toString());
+    });
+
+
+    Observable::empty()
+            ->subscribe([](const GAny &v) {
+                        }, [](const GAnyException &e) {
+                            LogE("Empty Exception: {}", e.toString());
+                        }, [] {
+                            Log("Empty Completed!!");
+                        });
 
     Observable::just(10)
             // ->map([](const GAny &x) {
@@ -111,6 +105,19 @@ int main(int argc, char **argv)
                         }, []() {
                             Log("Completed!!");
                         });
+}
+
+int main(int argc, char **argv)
+{
+#if GX_PLATFORM_WINDOWS
+    system("chcp 65001>nul");
+#endif
+
+    initGAnyCore();
+
+    test();
+
+    LeakObserver::checkLeak();
 
     return EXIT_SUCCESS;
 }
