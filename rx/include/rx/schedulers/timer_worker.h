@@ -26,7 +26,7 @@ public:
 public:
     void dispose() override
     {
-        mDisposed.store(true, std::memory_order::memory_order_release);
+        mDisposed.store(true, std::memory_order_release);
     }
 
     bool isDisposed() const override
