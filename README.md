@@ -236,6 +236,76 @@ Observable::range(0, 10)
 // 输出: 0, 2, 4, 6, 8
 ```
 
+#### elementAt
+
+只发射第 N 个数据项（从 0 开始）。
+
+```cpp
+// 获取索引为 2 的元素
+Observable::just("A", "B", "C", "D", "E")
+    ->elementAt(2);
+// 输出: C
+
+// 索引越界时使用默认值
+Observable::just(1, 2, 3)
+    ->elementAt(10, 999);
+// 输出: 999
+```
+
+#### first
+
+只发射第一个数据项。
+
+```cpp
+// 获取第一个元素
+Observable::just("First", "Second", "Third")
+    ->first();
+// 输出: First
+
+// 空序列时使用默认值
+Observable::empty()
+    ->first("Default");
+// 输出: Default
+```
+
+#### last
+
+只发射最后一个数据项。
+
+```cpp
+// 获取最后一个元素
+Observable::just("A", "B", "C")
+    ->last();
+// 输出: C
+
+// 空序列时使用默认值
+Observable::empty()
+    ->last("Default");
+// 输出: Default
+```
+
+#### ignoreElements
+
+忽略所有数据项，只传递 onComplete 或 onError 事件。
+
+```cpp
+// 忽略所有元素，只等待完成
+Observable::just(1, 2, 3, 4, 5)
+    ->ignoreElements()
+    ->subscribe(
+        [](const GAny &v) {
+            // 不会被调用
+        },
+        [](const GAnyException &e) {
+            // 错误仍会传递
+        },
+        []() {
+            std::cout << "Completed!" << std::endl;
+        }
+    );
+// 输出: Completed!
+```
+
 ### 组合操作符
 
 #### buffer
@@ -434,6 +504,10 @@ rx/
 | `map(function)` | 转换每个数据项 |
 | `flatMap(function)` | 将数据项转换为 Observable 并合并 |
 | `filter(predicate)` | 过滤数据项 |
+| `elementAt(index[, defaultValue])` | 发射第 N 个数据项（从 0 开始） |
+| `first([defaultValue])` | 发射第一个数据项 |
+| `last([defaultValue])` | 发射最后一个数据项 |
+| `ignoreElements()` | 忽略所有数据项，只传递完成或错误 |
 | `buffer(count[, skip])` | 缓存数据项为数组 |
 | `scan(accumulator)` | 对数据流应用累加器函数并发射每次结果 |
 | `repeat(times)` | 重复数据流 |

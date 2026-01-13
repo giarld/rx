@@ -108,6 +108,48 @@ void test()
                         }, []() {
                             Log("Completed!!");
                         });
+
+    // Test ignoreElements operator
+    Log("\n=== Testing ignoreElements ===");
+    
+    // Test ignoreElements: only onComplete should be called
+    Observable::just(1, 2, 3, 4, 5)
+            ->ignoreElements()
+            ->subscribe([](const GAny &v) {
+                            Log("ignoreElements onNext (shouldn't print): {}", v.toString());
+                        }, [](const GAnyException &e) {
+                            LogE("ignoreElements error: {}", e.toString());
+                        }, []() {
+                            Log("ignoreElements Completed (expected)!");
+                        });
+
+    // Test ignoreElements with error
+    Observable::just(1, 2, 3)
+            ->map([](const GAny &x) {
+                if (x.toInt32() == 2) {
+                    throw GAnyException("Test error");
+                }
+                return x;
+            })
+            ->ignoreElements()
+            ->subscribe([](const GAny &v) {
+                            Log("ignoreElements onNext: {}", v.toString());
+                        }, [](const GAnyException &e) {
+                            LogE("ignoreElements error (expected): {}", e.toString());
+                        }, []() {
+                            Log("ignoreElements Completed");
+                        });
+
+    // Test ignoreElements with empty observable
+    Observable::empty()
+            ->ignoreElements()
+            ->subscribe([](const GAny &v) {
+                            Log("ignoreElements empty onNext: {}", v.toString());
+                        }, [](const GAnyException &e) {
+                            LogE("ignoreElements empty error: {}", e.toString());
+                        }, []() {
+                            Log("ignoreElements empty Completed (expected)!");
+                        });
 }
 
 int main(int argc, char **argv)

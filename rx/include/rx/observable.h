@@ -89,6 +89,20 @@ public:
 
     std::shared_ptr<Observable> filter(const FilterFunction &filter);
 
+    std::shared_ptr<Observable> elementAt(uint64_t index);
+
+    std::shared_ptr<Observable> elementAt(uint64_t index, const GAny &defaultValue);
+
+    std::shared_ptr<Observable> first();
+
+    std::shared_ptr<Observable> first(const GAny &defaultValue);
+
+    std::shared_ptr<Observable> last();
+
+    std::shared_ptr<Observable> last(const GAny &defaultValue);
+
+    std::shared_ptr<Observable> ignoreElements();
+
 
     std::shared_ptr<Observable> subscribeOn(SchedulerPtr scheduler);
 

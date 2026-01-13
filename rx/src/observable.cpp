@@ -7,13 +7,16 @@
 #include "rx/operators/observable_buffer.h"
 #include "rx/operators/observable_create.h"
 #include "rx/operators/observable_defer.h"
+#include "rx/operators/observable_element_at.h"
 #include "rx/operators/observable_empty.h"
 #include "rx/operators/observable_error.h"
 #include "rx/operators/observable_filter.h"
 #include "rx/operators/observable_flat_map.h"
 #include "rx/operators/observable_from_array.h"
+#include "rx/operators/observable_ignore_elements.h"
 #include "rx/operators/observable_interval.h"
 #include "rx/operators/observable_just.h"
+#include "rx/operators/observable_last.h"
 #include "rx/operators/observable_map.h"
 #include "rx/operators/observable_never.h"
 #include "rx/operators/observable_observe_on.h"
@@ -192,6 +195,41 @@ std::shared_ptr<Observable> Observable::scan(const BiFunction &accumulator)
 std::shared_ptr<Observable> Observable::filter(const FilterFunction &filter)
 {
     return std::make_shared<ObservableFilter>(this->shared_from_this(), filter);
+}
+
+std::shared_ptr<Observable> Observable::elementAt(uint64_t index)
+{
+    return std::make_shared<ObservableElementAt>(this->shared_from_this(), index, GAny(), false);
+}
+
+std::shared_ptr<Observable> Observable::elementAt(uint64_t index, const GAny &defaultValue)
+{
+    return std::make_shared<ObservableElementAt>(this->shared_from_this(), index, defaultValue, true);
+}
+
+std::shared_ptr<Observable> Observable::first()
+{
+    return elementAt(0);
+}
+
+std::shared_ptr<Observable> Observable::first(const GAny &defaultValue)
+{
+    return elementAt(0, defaultValue);
+}
+
+std::shared_ptr<Observable> Observable::last()
+{
+    return std::make_shared<ObservableLast>(this->shared_from_this(), GAny(), false);
+}
+
+std::shared_ptr<Observable> Observable::last(const GAny &defaultValue)
+{
+    return std::make_shared<ObservableLast>(this->shared_from_this(), defaultValue, true);
+}
+
+std::shared_ptr<Observable> Observable::ignoreElements()
+{
+    return std::make_shared<ObservableIgnoreElements>(this->shared_from_this());
 }
 
 
