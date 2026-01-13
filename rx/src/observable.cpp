@@ -7,6 +7,7 @@
 #include "rx/operators/observable_buffer.h"
 #include "rx/operators/observable_create.h"
 #include "rx/operators/observable_defer.h"
+#include "rx/operators/observable_delay.h"
 #include "rx/operators/observable_element_at.h"
 #include "rx/operators/observable_empty.h"
 #include "rx/operators/observable_error.h"
@@ -25,6 +26,7 @@
 #include "rx/operators/observable_scan.h"
 #include "rx/operators/observable_subscribe_on.h"
 #include "rx/operators/observable_timer.h"
+#include "rx/schedulers/main_thread_scheduler.h"
 
 
 namespace rx
@@ -230,6 +232,14 @@ std::shared_ptr<Observable> Observable::last(const GAny &defaultValue)
 std::shared_ptr<Observable> Observable::ignoreElements()
 {
     return std::make_shared<ObservableIgnoreElements>(this->shared_from_this());
+}
+
+std::shared_ptr<Observable> Observable::delay(uint64_t delay, SchedulerPtr scheduler)
+{
+    if (!scheduler) {
+        scheduler = MainThreadScheduler::create();
+    }
+    return std::make_shared<ObservableDelay>(this->shared_from_this(), delay, scheduler);
 }
 
 
