@@ -6,6 +6,7 @@
 #define RX_OBSERVER_H
 
 #include "disposables/atomic_disposable.h"
+#include "disposables/disposable_helper.h"
 #include "leak_observer.h"
 
 #include <gx/gany.h>
@@ -45,8 +46,7 @@ public:
         : mOnNextAction(next),
           mOnCompleteAction(complete),
           mOnErrorAction(error),
-          mOnSubscribeAction(subscribe),
-          mDisposable(std::make_shared<AtomicDisposable>())
+          mOnSubscribeAction(subscribe)
     {
         LeakObserver::make<LambdaObserver>();
     }
@@ -58,8 +58,7 @@ public:
 
     void onSubscribe(const DisposablePtr &d) override
     {
-        mDisposable = d;
-        if (mOnSubscribeAction) {
+        if (DisposableHelper::setOnce(mDisposable, d, mLock) && mOnSubscribeAction) {
             try {
                 mOnSubscribeAction(d);
             } catch (const GAnyException &e) {
@@ -76,7 +75,7 @@ public:
                 try {
                     mOnNextAction(value);
                 } catch (const GAnyException &e) {
-                    dispose();
+                    mDisposable->dispose();
                     onError(e);
                 }
             }
@@ -86,40 +85,31 @@ public:
     void onError(const GAnyException &e) override
     {
         if (!isDisposed()) {
+            dispose();
             if (mOnErrorAction) {
                 mOnErrorAction(e);
             }
-            mDisposable = nullptr;
         }
     }
 
     void onComplete() override
     {
         if (!isDisposed()) {
+            dispose();
             if (mOnCompleteAction) {
                 mOnCompleteAction();
             }
-            mDisposable = nullptr;
         }
     }
 
     void dispose() override
     {
-        if (const auto d = mDisposable) {
-            mDisposable = nullptr;
-            d->dispose();
-        }
-        mOnNextAction = nullptr;
-        mOnErrorAction = nullptr;
-        mOnCompleteAction = nullptr;
+        DisposableHelper::dispose(mDisposable, mLock);
     }
 
     bool isDisposed() const override
     {
-        if (const auto d = mDisposable) {
-            return d->isDisposed();
-        }
-        return true;
+        return DisposableHelper::isDisposed(mDisposable);
     }
 
 private:
@@ -129,6 +119,7 @@ private:
     OnSubscribeAction mOnSubscribeAction;
 
     DisposablePtr mDisposable = nullptr;
+    GMutex mLock;
 };
 }
 
