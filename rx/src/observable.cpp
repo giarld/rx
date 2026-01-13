@@ -135,6 +135,24 @@ std::shared_ptr<Observable> Observable::range(int64_t start, uint64_t count)
     return std::make_shared<ObservableRange>(start, count);
 }
 
+std::shared_ptr<Observable> Observable::fromCallable(const Callable &callable)
+{
+    return create([callable](const ObservableEmitterPtr &emitter) {
+        GAny r;
+        try {
+            r = callable();
+        } catch (const std::exception &e) {
+            if (!emitter->isDisposed()) {
+                emitter->onError(GAnyException(e.what()));
+            }
+        }
+        if (!emitter->isDisposed()) {
+            emitter->onNext(r);
+            emitter->onComplete();
+        }
+    });
+}
+
 
 std::shared_ptr<Observable> Observable::map(const MapFunction &function)
 {

@@ -19,6 +19,7 @@ using ObservableOnSubscribe = std::function<void(const ObservableEmitterPtr &emi
 using MapFunction = std::function<GAny(const GAny &x)>;
 using FlatMapFunction = std::function<std::shared_ptr<Observable>(const GAny &v)>;
 using FilterFunction = std::function<bool(const GAny &v)>;
+using Callable = std::function<GAny()>;
 
 class GX_API Observable : public ObservableSource, public std::enable_shared_from_this<Observable>
 {
@@ -68,6 +69,8 @@ public:
     static std::shared_ptr<Observable> timer(uint64_t delay);
 
     static std::shared_ptr<Observable> range(int64_t start, uint64_t count);
+
+    static std::shared_ptr<Observable> fromCallable(const Callable &callable);
 
 
     std::shared_ptr<Observable> map(const MapFunction &function);
