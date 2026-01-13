@@ -254,6 +254,28 @@ Observable::range(1, 10)
 // 输出: [1,2,3], [3,4,5], [5,6,7], [7,8,9], [9,10]
 ```
 
+### 聚合操作符
+
+#### scan
+
+对数据流中的每个数据项应用累加器函数，并发射每次累加的结果。
+
+```cpp
+// 累乘示例
+Observable::just(1, 2, 3, 4)
+    ->scan([](const GAny &last, const GAny &item) {
+        return last.toInt32() * item.toInt32();
+    });
+// 输出: 1, 2, 6, 24
+
+// 累加示例
+Observable::just(1, 2, 3, 4)
+    ->scan([](const GAny &last, const GAny &item) {
+        return last.toInt32() + item.toInt32();
+    });
+// 输出: 1, 3, 6, 10
+```
+
 ### 辅助操作符
 
 #### repeat
@@ -413,6 +435,7 @@ rx/
 | `flatMap(function)` | 将数据项转换为 Observable 并合并 |
 | `filter(predicate)` | 过滤数据项 |
 | `buffer(count[, skip])` | 缓存数据项为数组 |
+| `scan(accumulator)` | 对数据流应用累加器函数并发射每次结果 |
 | `repeat(times)` | 重复数据流 |
 | `subscribeOn(scheduler)` | 指定订阅的调度器 |
 | `observeOn(scheduler)` | 指定观察的调度器 |

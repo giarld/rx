@@ -23,18 +23,21 @@ void test()
     const auto threadScheduler = NewThreadScheduler::create();
     const auto timerScheduler = MainThreadScheduler::create();
     Observable::create([&](const ObservableEmitterPtr &emitter) {
-                emitter->onNext(123);
-                emitter->onNext("234");
+                emitter->onNext(1);
+                emitter->onNext(2);
                 // throw GAnyException("Error");
                 // emitter->onError(GAnyException("Error"));
                 mainScheduler->post([emitter] {
-                    emitter->onNext(345);
+                    emitter->onNext(3);
                     emitter->onComplete();
                 }, 1000);
             })
             ->map([](const GAny &x) {
                 // GThread::sleep(1);
                 return x + 1;
+            })
+            ->scan([](const GAny &last, const GAny &item) {
+                return last * item;
             })
             ->repeat(2)
             ->subscribeOn(threadScheduler)

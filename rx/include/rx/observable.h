@@ -20,6 +20,7 @@ using MapFunction = std::function<GAny(const GAny &x)>;
 using FlatMapFunction = std::function<std::shared_ptr<Observable>(const GAny &v)>;
 using FilterFunction = std::function<bool(const GAny &v)>;
 using Callable = std::function<GAny()>;
+using BiFunction = std::function<GAny(const GAny &last, const GAny &item)>;
 
 class GX_API Observable : public ObservableSource, public std::enable_shared_from_this<Observable>
 {
@@ -82,6 +83,8 @@ public:
     std::shared_ptr<Observable> buffer(uint64_t count);
 
     std::shared_ptr<Observable> repeat(uint64_t times);
+
+    std::shared_ptr<Observable> scan(const BiFunction &accumulator);
 
 
     std::shared_ptr<Observable> filter(const FilterFunction &filter);

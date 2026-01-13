@@ -19,6 +19,7 @@
 #include "rx/operators/observable_observe_on.h"
 #include "rx/operators/observable_range.h"
 #include "rx/operators/observable_repeat.h"
+#include "rx/operators/observable_scan.h"
 #include "rx/operators/observable_subscribe_on.h"
 #include "rx/operators/observable_timer.h"
 
@@ -180,6 +181,11 @@ std::shared_ptr<Observable> Observable::repeat(uint64_t times)
         return empty();
     }
     return std::make_shared<ObservableRepeat>(this->shared_from_this(), times);
+}
+
+std::shared_ptr<Observable> Observable::scan(const BiFunction &accumulator)
+{
+    return std::make_shared<ObservableScan>(this->shared_from_this(), accumulator);
 }
 
 
