@@ -5,7 +5,6 @@
 #ifndef RX_TASK_SYSTEM_WORKER_H
 #define RX_TASK_SYSTEM_WORKER_H
 
-#include "scheduled_direct_task.h"
 #include "../scheduler.h"
 #include "../operators/observable_empty.h"
 #include "../leak_observer.h"

@@ -5,7 +5,6 @@
 #ifndef RX_TIMER_WORKER_H
 #define RX_TIMER_WORKER_H
 
-#include "scheduled_direct_timer.h"
 #include "../scheduler.h"
 #include "../operators/observable_empty.h"
 #include "../leak_observer.h"
