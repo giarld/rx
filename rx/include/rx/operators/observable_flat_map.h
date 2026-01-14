@@ -94,7 +94,7 @@ public:
         try {
             p = mFunction(value);
         } catch (const GAnyException &e) {
-            dispose();
+            mUpstream->dispose();
             onError(e);
             return;
         }
@@ -115,8 +115,8 @@ public:
         if (mDown.exchange(true, std::memory_order_acq_rel)) {
             return;
         }
-        dispose();
         mDownstream->onError(e);
+        dispose();
     }
 
     void onComplete() override
@@ -124,6 +124,7 @@ public:
         if (mActiveCount.fetch_sub(1) == 1) {
             if (!mDown.exchange(true, std::memory_order_acq_rel)) {
                 mDownstream->onComplete();
+                dispose();
             }
         }
     }
@@ -131,8 +132,8 @@ public:
     void dispose() override
     {
         if (!mDisposed.exchange(true)) {
-            if (mUpstream) {
-                mUpstream->dispose();
+            if (const auto d = mUpstream) {
+                d->dispose();
                 mUpstream = nullptr;
             }
 

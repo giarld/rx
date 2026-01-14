@@ -2,31 +2,31 @@
 // Created by Gxin on 2026/1/8.
 //
 
-#ifndef RX_TASK_SYSTEM_WORKER_H
-#define RX_TASK_SYSTEM_WORKER_H
+#ifndef RX_JOB_SYSTEM_WORKER_H
+#define RX_JOB_SYSTEM_WORKER_H
 
 #include "../scheduler.h"
 #include "../operators/observable_empty.h"
 #include "../leak_observer.h"
 
-#include <gx/gtasksystem.h>
+#include <gx/gjobsystem.h>
 #include <gx/gtimer.h>
 
 
 namespace rx
 {
-class TaskSystemWorker : public Worker, public std::enable_shared_from_this<TaskSystemWorker>
+class JobSystemWorker : public Worker, public std::enable_shared_from_this<JobSystemWorker>
 {
 public:
-    explicit TaskSystemWorker(GTaskSystem *taskSystem, GTimerScheduler *timerScheduler)
-        : mTaskSystem(taskSystem), mTimerScheduler(timerScheduler)
+    explicit JobSystemWorker(GJobSystem *jobSystem)
+        : mJobSystem(jobSystem)
     {
-        LeakObserver::make<TaskSystemWorker>();
+        LeakObserver::make<JobSystemWorker>();
     }
 
-    ~TaskSystemWorker() override
+    ~JobSystemWorker() override
     {
-        LeakObserver::release<TaskSystemWorker>();
+        LeakObserver::release<JobSystemWorker>();
     }
 
 public:
@@ -45,23 +45,25 @@ public:
         if (!mDisposed.load(std::memory_order_acquire)) {
             std::shared_ptr<AtomicDisposable> d = std::make_shared<AtomicDisposable>();
             if (delay > 0) {
-                mTimerScheduler->post([run, ts = mTaskSystem, d] {
+                GTimerScheduler::global()->post([run, js = mJobSystem, d] {
                     if (!d->isDisposed()) {
-                        ts->submit([run, d] {
+                        auto *parent = js->createJob();
+                        js->run(js->createJob(parent, [run, d](GJobSystem *, GJobSystem::Job *) {
                             if (!d->isDisposed()) {
                                 run();
                             }
-                            return true;
-                        });
+                        }));
+                        js->run(parent);
                     }
                 }, delay);
             } else {
-                mTaskSystem->submit([run, d] {
+                auto *parent = mJobSystem->createJob();
+                mJobSystem->run(mJobSystem->createJob(nullptr, [run, d](GJobSystem *, GJobSystem::Job *) {
                     if (!d->isDisposed()) {
                         run();
                     }
-                    return true;
-                });
+                }));
+                mJobSystem->run(parent);
             }
             return d;
         }
@@ -70,9 +72,8 @@ public:
 
 private:
     std::atomic<bool> mDisposed = false;
-    GTaskSystem *mTaskSystem;
-    GTimerScheduler *mTimerScheduler;
+    GJobSystem *mJobSystem;
 };
 } // rx
 
-#endif //RX_TASK_SYSTEM_WORKER_H
+#endif //RX_JOB_SYSTEM_WORKER_H

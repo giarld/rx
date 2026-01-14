@@ -9,6 +9,7 @@
 #include "observable.h"
 
 #include "schedulers/task_system_scheduler.h"
+#include "schedulers/job_system_scheduler.h"
 #include "schedulers/new_thread_scheduler.h"
 #include "schedulers/timer_scheduler.h"
 #include "schedulers/main_thread_scheduler.h"

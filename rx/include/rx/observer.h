@@ -85,20 +85,20 @@ public:
     void onError(const GAnyException &e) override
     {
         if (!isDisposed()) {
-            dispose();
             if (mOnErrorAction) {
                 mOnErrorAction(e);
             }
+            mDisposable = DisposableHelper::disposed();
         }
     }
 
     void onComplete() override
     {
         if (!isDisposed()) {
-            dispose();
             if (mOnCompleteAction) {
                 mOnCompleteAction();
             }
+            mDisposable = DisposableHelper::disposed();
         }
     }
 
