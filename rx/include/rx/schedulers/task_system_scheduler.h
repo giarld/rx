@@ -8,6 +8,7 @@
 #include "task_system_worker.h"
 #include "../leak_observer.h"
 #include <gx/gtasksystem.h>
+#include <gx/gtimer.h>
 
 
 namespace rx
@@ -19,11 +20,20 @@ public:
         : mTaskSystem(taskSystem)
     {
         LeakObserver::make<TaskSystemScheduler>();
+
+        mTimerScheduler = GTimerScheduler::create("TaskSystemSchedulerTimer");
+        mTimerScheduler->start();
+        mTimerThread.setRunnable([this] {
+            mTimerScheduler->run();
+        });
+        mTimerThread.start();
     }
 
     ~TaskSystemScheduler() override
     {
         LeakObserver::release<TaskSystemScheduler>();
+
+        mTimerScheduler->stop();
     }
 
     static std::shared_ptr<TaskSystemScheduler> create(GTaskSystem *taskSystem)
@@ -34,11 +44,13 @@ public:
 public:
     WorkerPtr createWorker() override
     {
-        return std::make_shared<TaskSystemWorker>(mTaskSystem);
+        return std::make_shared<TaskSystemWorker>(mTaskSystem, mTimerScheduler.get());
     }
 
 protected:
     GTaskSystem *mTaskSystem;
+    GTimerSchedulerPtr mTimerScheduler; // 用于调度 delay 任务的计时器调度器
+    GThread mTimerThread;
 };
 } // rx
 

@@ -9,8 +9,6 @@
 #include "../operators/observable_empty.h"
 #include "../leak_observer.h"
 
-#include "scheduled_direct_task.h"
-
 #include <gx/gtasksystem.h>
 
 
@@ -19,10 +17,10 @@ namespace rx
 class TaskSystemWorker : public Worker, public std::enable_shared_from_this<TaskSystemWorker>
 {
 public:
-    explicit TaskSystemWorker(GTaskSystem *taskSystem)
+    explicit TaskSystemWorker(GTaskSystem *taskSystem, GTimerScheduler *timerScheduler)
+        : mTaskSystem(taskSystem), mTimerScheduler(timerScheduler)
     {
         LeakObserver::make<TaskSystemWorker>();
-        mTaskSystem = taskSystem;
     }
 
     ~TaskSystemWorker() override
@@ -44,37 +42,27 @@ public:
     DisposablePtr schedule(const WorkerRunnable &run, uint64_t delay) override
     {
         if (!mDisposed.load(std::memory_order_acquire)) {
-            const auto t = std::make_shared<ScheduledDirectTask>(run, delay);
-            //
-            {
-                GLockerGuard locker(mLock);
-                mTasks.push_back(t);
-                std::sort(mTasks.begin(), mTasks.end(),
-                    [](const auto &lhs, const auto &rhs) {
-                        return lhs->getTime() > rhs->getTime();
-                    });
-            }
-
-            mTaskSystem->submit([thiz = shared_from_this()] {
-                std::shared_ptr<ScheduledDirectTask> task;
-                //
-                {
-                    GLockerGuard locker(thiz->mLock);
-                    task = thiz->mTasks.back();
-                    thiz->mTasks.pop_back();
-                }
-                if (!task || task->isDisposed()) {
+            std::shared_ptr<AtomicDisposable> d = std::make_shared<AtomicDisposable>();
+            if (delay > 0) {
+                mTimerScheduler->post([run, ts = mTaskSystem, d] {
+                    if (!d->isDisposed()) {
+                        ts->submit([run, d] {
+                            if (!d->isDisposed()) {
+                                run();
+                            }
+                            return true;
+                        });
+                    }
+                }, delay);
+            } else {
+                mTaskSystem->submit([run, d] {
+                    if (!d->isDisposed()) {
+                        run();
+                    }
                     return true;
-                }
-                const GTime now = GTime::currentSteadyTime();
-                const int64_t d = task->getTime().milliSecsTo(now);
-                if (d > 0) {
-                    GThread::mSleep(d);
-                }
-                task->run();
-                return true;
-            });
-            return t;
+                });
+            }
+            return d;
         }
         return EmptyDisposable::instance();
     }
@@ -82,9 +70,7 @@ public:
 private:
     std::atomic<bool> mDisposed = false;
     GTaskSystem *mTaskSystem;
-
-    std::vector<std::shared_ptr<ScheduledDirectTask>> mTasks;
-    GMutex mLock;
+    GTimerScheduler *mTimerScheduler;
 };
 } // rx
 

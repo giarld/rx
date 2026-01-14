@@ -42,9 +42,13 @@ public:
     DisposablePtr schedule(const WorkerRunnable &run, uint64_t delay) override
     {
         if (!mDisposed.load(std::memory_order_acquire)) {
-            mTimerScheduler->post([run] {
-                run();
+            std::shared_ptr<AtomicDisposable> d = std::make_shared<AtomicDisposable>();
+            mTimerScheduler->post([run, d] {
+                if (!d->isDisposed()) {
+                    run();
+                }
             }, delay);
+            return d;
         }
         return EmptyDisposable::instance();
     }
