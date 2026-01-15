@@ -107,6 +107,10 @@ public:
 
     std::shared_ptr<Observable> skipLast(uint64_t count);
 
+    std::shared_ptr<Observable> take(uint64_t count);
+
+    std::shared_ptr<Observable> takeLast(uint64_t count);
+
     std::shared_ptr<Observable> delay(uint64_t delay, SchedulerPtr scheduler = nullptr);
 
 

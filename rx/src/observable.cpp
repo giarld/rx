@@ -27,6 +27,8 @@
 #include "rx/operators/observable_skip.h"
 #include "rx/operators/observable_skip_last.h"
 #include "rx/operators/observable_subscribe_on.h"
+#include "rx/operators/observable_take.h"
+#include "rx/operators/observable_take_last.h"
 #include "rx/operators/observable_timer.h"
 #include "rx/schedulers/main_thread_scheduler.h"
 
@@ -250,6 +252,16 @@ std::shared_ptr<Observable> Observable::skipLast(uint64_t count)
         return this->shared_from_this();
     }
     return std::make_shared<ObservableSkipLast>(this->shared_from_this(), count);
+}
+
+std::shared_ptr<Observable> Observable::take(uint64_t count)
+{
+    return std::make_shared<ObservableTake>(this->shared_from_this(), count);
+}
+
+std::shared_ptr<Observable> Observable::takeLast(uint64_t count)
+{
+    return std::make_shared<ObservableTakeLast>(this->shared_from_this(), count);
 }
 
 std::shared_ptr<Observable> Observable::delay(uint64_t delay, SchedulerPtr scheduler)
