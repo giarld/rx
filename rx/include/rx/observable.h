@@ -103,6 +103,10 @@ public:
 
     std::shared_ptr<Observable> ignoreElements();
 
+    std::shared_ptr<Observable> skip(uint64_t count);
+
+    std::shared_ptr<Observable> skipLast(uint64_t count);
+
     std::shared_ptr<Observable> delay(uint64_t delay, SchedulerPtr scheduler = nullptr);
 
 

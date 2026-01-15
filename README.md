@@ -306,6 +306,48 @@ Observable::just(1, 2, 3, 4, 5)
 // 输出: Completed!
 ```
 
+#### skip
+
+跳过前 N 个数据项，只发射后续的数据项。
+
+```cpp
+// 跳过前 3 个元素
+Observable::range(0, 10)
+    ->skip(3);
+// 输出: 3, 4, 5, 6, 7, 8, 9
+
+// 跳过 0 个元素（返回原 Observable）
+Observable::just(1, 2, 3)
+    ->skip(0);
+// 输出: 1, 2, 3
+
+// 跳过数量大于总数（不发射任何数据，直接完成）
+Observable::just(1, 2, 3)
+    ->skip(10);
+// 输出: (无数据，仅完成)
+```
+
+#### skipLast
+
+跳过最后 N 个数据项，只发射前面的数据项。
+
+```cpp
+// 跳过最后 2 个元素
+Observable::range(0, 10)
+    ->skipLast(2);
+// 输出: 0, 1, 2, 3, 4, 5, 6, 7
+
+// 跳过最后 0 个元素（返回原 Observable）
+Observable::just(1, 2, 3)
+    ->skipLast(0);
+// 输出: 1, 2, 3
+
+// 跳过数量大于总数（不发射任何数据，直接完成）
+Observable::just(1, 2, 3)
+    ->skipLast(10);
+// 输出: (无数据，仅完成)
+```
+
 ### 组合操作符
 
 #### buffer
@@ -508,6 +550,8 @@ rx/
 | `first([defaultValue])` | 发射第一个数据项 |
 | `last([defaultValue])` | 发射最后一个数据项 |
 | `ignoreElements()` | 忽略所有数据项，只传递完成或错误 |
+| `skip(count)` | 跳过前 N 个数据项 |
+| `skipLast(count)` | 跳过最后 N 个数据项 |
 | `buffer(count[, skip])` | 缓存数据项为数组 |
 | `scan(accumulator)` | 对数据流应用累加器函数并发射每次结果 |
 | `repeat(times)` | 重复数据流 |

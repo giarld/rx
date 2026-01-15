@@ -24,6 +24,8 @@
 #include "rx/operators/observable_range.h"
 #include "rx/operators/observable_repeat.h"
 #include "rx/operators/observable_scan.h"
+#include "rx/operators/observable_skip.h"
+#include "rx/operators/observable_skip_last.h"
 #include "rx/operators/observable_subscribe_on.h"
 #include "rx/operators/observable_timer.h"
 #include "rx/schedulers/main_thread_scheduler.h"
@@ -232,6 +234,22 @@ std::shared_ptr<Observable> Observable::last(const GAny &defaultValue)
 std::shared_ptr<Observable> Observable::ignoreElements()
 {
     return std::make_shared<ObservableIgnoreElements>(this->shared_from_this());
+}
+
+std::shared_ptr<Observable> Observable::skip(uint64_t count)
+{
+    if (count == 0) {
+        return this->shared_from_this();
+    }
+    return std::make_shared<ObservableSkip>(this->shared_from_this(), count);
+}
+
+std::shared_ptr<Observable> Observable::skipLast(uint64_t count)
+{
+    if (count == 0) {
+        return this->shared_from_this();
+    }
+    return std::make_shared<ObservableSkipLast>(this->shared_from_this(), count);
 }
 
 std::shared_ptr<Observable> Observable::delay(uint64_t delay, SchedulerPtr scheduler)
