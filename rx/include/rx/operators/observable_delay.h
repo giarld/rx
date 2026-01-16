@@ -31,7 +31,9 @@ public:
     {
         if (DisposableHelper::validate(mUpstream, d)) {
             mUpstream = d;
-            mDownstream->onSubscribe(this->shared_from_this());
+            if (const auto ds = mDownstream) {
+                ds->onSubscribe(this->shared_from_this());
+            }
         }
     }
 
@@ -41,7 +43,9 @@ public:
         mWorker->schedule([thisWeak, value] {
             const auto thiz = thisWeak.lock();
             if (thiz && !thiz->mWorker->isDisposed()) {
-                thiz->mDownstream->onNext(value);
+                if (const auto d = thiz->mDownstream) {
+                    d->onNext(value);
+                }
             }
         }, mDelay);
     }
@@ -52,7 +56,9 @@ public:
         mWorker->schedule([thisWeak, e] {
             const auto thiz = thisWeak.lock();
             if (thiz) {
-                thiz->mDownstream->onError(e);
+                if (const auto d = thiz->mDownstream) {
+                    d->onError(e);
+                }
                 thiz->mWorker->dispose();
             }
         });
@@ -64,7 +70,9 @@ public:
         mWorker->schedule([thisWeak] {
             const auto thiz = thisWeak.lock();
             if (thiz) {
-                thiz->mDownstream->onComplete();
+                if (const auto d = thiz->mDownstream) {
+                    d->onComplete();
+                }
                 thiz->mWorker->dispose();
             }
         }, mDelay);

@@ -35,21 +35,27 @@ public:
 
     void onNext(const GAny &value) override
     {
-        mDownstream->onNext(value);
+        if (const auto d = mDownstream) {
+            d->onNext(value);
+        }
     }
 
     void onError(const GAnyException &e) override
     {
-        mDownstream->onError(e);
-
+        if (const auto d = mDownstream) {
+            d->onError(e);
+        }
+        
         mUpstream = nullptr;
         mDownstream = nullptr;
     }
 
     void onComplete() override
     {
-        mDownstream->onComplete();
-
+        if (const auto d = mDownstream) {
+            d->onComplete();
+        }
+        
         mUpstream = nullptr;
         mDownstream = nullptr;
     }

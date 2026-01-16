@@ -30,7 +30,9 @@ public:
     {
         if (DisposableHelper::validate(mUpstream, d)) {
             mUpstream = d;
-            mDownstream->onSubscribe(this->shared_from_this());
+            if (const auto ds = mDownstream) {
+                ds->onSubscribe(this->shared_from_this());
+            }
         }
     }
 
@@ -39,15 +41,19 @@ public:
         if (mDone.load(std::memory_order_acquire)) {
             return;
         }
-        GAny r;
-        try {
-            r = mFunction(value);
-        } catch (const GAnyException &e) {
-            mUpstream->dispose();
-            onError(e);
-            return;
+        if (const auto d = mDownstream) {
+            GAny r;
+            try {
+                r = mFunction(value);
+            } catch (const GAnyException &e) {
+                if (const auto u = mUpstream) {
+                    u->dispose();
+                }
+                onError(e);
+                return;
+            }
+            d->onNext(r);
         }
-        mDownstream->onNext(r);
     }
 
     void onError(const GAnyException &e) override
@@ -55,7 +61,9 @@ public:
         if (mDone.exchange(true, std::memory_order_acq_rel)) {
             return;
         }
-        mDownstream->onError(e);
+        if (const auto d = mDownstream) {
+            d->onError(e);
+        }
 
         mDownstream = nullptr;
         mUpstream = nullptr;
@@ -66,7 +74,9 @@ public:
         if (mDone.exchange(true, std::memory_order_acq_rel)) {
             return;
         }
-        mDownstream->onComplete();
+        if (const auto d = mDownstream) {
+            d->onComplete();
+        }
 
         mDownstream = nullptr;
         mUpstream = nullptr;

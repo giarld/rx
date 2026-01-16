@@ -31,7 +31,9 @@ public:
     {
         if (DisposableHelper::validate(mUpstream, d)) {
             mUpstream = d;
-            mDownstream->onSubscribe(this->shared_from_this());
+            if (const auto ds = mDownstream) {
+                ds->onSubscribe(this->shared_from_this());
+            }
         }
     }
 
@@ -45,8 +47,10 @@ public:
         if (currentCount == mIndex) {
             mDone.store(true, std::memory_order_release);
             mUpstream->dispose();
-            mDownstream->onNext(value);
-            mDownstream->onComplete();
+            if (const auto d = mDownstream) {
+                d->onNext(value);
+                d->onComplete();
+            }
 
             mDownstream = nullptr;
             mUpstream = nullptr;
@@ -60,7 +64,9 @@ public:
         if (mDone.exchange(true, std::memory_order_acq_rel)) {
             return;
         }
-        mDownstream->onError(e);
+        if (const auto d = mDownstream) {
+            d->onError(e);
+        }
 
         mDownstream = nullptr;
         mUpstream = nullptr;
@@ -72,11 +78,13 @@ public:
             return;
         }
 
-        if (mHasDefault) {
-            mDownstream->onNext(mDefaultValue);
-            mDownstream->onComplete();
-        } else {
-            mDownstream->onError(GAnyException("Index out of bounds"));
+        if (const auto d = mDownstream) {
+            if (mHasDefault) {
+                d->onNext(mDefaultValue);
+                d->onComplete();
+            } else {
+                d->onError(GAnyException("Index out of bounds"));
+            }
         }
 
         mDownstream = nullptr;

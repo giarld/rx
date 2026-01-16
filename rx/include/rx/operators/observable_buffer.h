@@ -31,23 +31,29 @@ public:
     {
         if (DisposableHelper::validate(mUpstream, d)) {
             mUpstream = d;
-            mDownstream->onSubscribe(this->shared_from_this());
+            if (const auto ds = mDownstream) {
+                ds->onSubscribe(this->shared_from_this());
+            }
         }
     }
 
     void onNext(const GAny &value) override
     {
-        mBuffer.push_back(value);
-        if (mBuffer.size() >= mCount) {
-            mDownstream->onNext(mBuffer);
-            mBuffer.clear();
+        if (const auto d = mDownstream) {
+            mBuffer.push_back(value);
+            if (mBuffer.size() >= mCount) {
+                d->onNext(mBuffer);
+                mBuffer.clear();
+            }
         }
     }
 
     void onError(const GAnyException &e) override
     {
         mBuffer.clear();
-        mDownstream->onError(e);
+        if (const auto d = mDownstream) {
+            d->onError(e);
+        }
 
         mDownstream = nullptr;
         mUpstream = nullptr;
@@ -55,11 +61,13 @@ public:
 
     void onComplete() override
     {
-        if (!mBuffer.empty()) {
-            mDownstream->onNext(mBuffer);
+        if (const auto d = mDownstream) {
+            if (!mBuffer.empty()) {
+                d->onNext(mBuffer);
+            }
+            mBuffer.clear();
+            d->onComplete();
         }
-        mBuffer.clear();
-        mDownstream->onComplete();
 
         mDownstream = nullptr;
         mUpstream = nullptr;
@@ -67,8 +75,8 @@ public:
 
     void dispose() override
     {
-        if (mUpstream) {
-            mUpstream->dispose();
+        if (const auto d = mUpstream) {
+            d->dispose();
             mUpstream = nullptr;
         }
         mDownstream = nullptr;
@@ -108,25 +116,29 @@ public:
     {
         if (DisposableHelper::validate(mUpstream, d)) {
             mUpstream = d;
-            mDownstream->onSubscribe(this->shared_from_this());
+            if (const auto ds = mDownstream) {
+                ds->onSubscribe(this->shared_from_this());
+            }
         }
     }
 
     void onNext(const GAny &value) override
     {
-        if (mIndex++ % mSkip == 0) {
-            mBuffers.push_back({});
-        }
-
-        for (auto it = mBuffers.begin(); it != mBuffers.end();) {
-            auto &buffer = *it;
-            buffer.push_back(value);
-            if (mCount <= buffer.size()) {
-                mDownstream->onNext(buffer);
-                it = mBuffers.erase(it);
+        if (const auto d = mDownstream) {
+            if (mIndex++ % mSkip == 0) {
+                mBuffers.push_back({});
             }
-            else {
-                ++it;
+        
+            for (auto it = mBuffers.begin(); it != mBuffers.end();) {
+                auto &buffer = *it;
+                buffer.push_back(value);
+                if (mCount <= buffer.size()) {
+                    d->onNext(buffer);
+                    it = mBuffers.erase(it);
+                }
+                else {
+                    ++it;
+                }
             }
         }
     }
@@ -134,20 +146,24 @@ public:
     void onError(const GAnyException &e) override
     {
         mBuffers.clear();
-        mDownstream->onError(e);
-
+        if (const auto d = mDownstream) {
+            d->onError(e);
+        }
+        
         mDownstream = nullptr;
         mUpstream = nullptr;
     }
 
     void onComplete() override
     {
-        for (auto it = mBuffers.begin(); it != mBuffers.end(); ++it) {
-            mDownstream->onNext(*it);
+        if (const auto d = mDownstream) {
+            for (auto it = mBuffers.begin(); it != mBuffers.end(); ++it) {
+                d->onNext(*it);
+            }
+            mBuffers.clear();
+            d->onComplete();
         }
-        mBuffers.clear();
-        mDownstream->onComplete();
-
+        
         mDownstream = nullptr;
         mUpstream = nullptr;
     }

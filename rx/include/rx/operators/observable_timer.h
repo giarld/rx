@@ -32,9 +32,10 @@ public:
     {
         if (!isDisposed()) {
             if (const auto o = mDownstream) {
-                mDownstream = nullptr;
                 o->onNext(0ULL);
                 o->onComplete();
+
+                mDownstream = nullptr;
             }
         }
     }

@@ -32,7 +32,9 @@ public:
     {
         if (DisposableHelper::validate(mUpstream, d)) {
             mUpstream = d;
-            mDownstream->onSubscribe(this->shared_from_this());
+            if (const auto ds = mDownstream) {
+                ds->onSubscribe(this->shared_from_this());
+            }
         }
     }
 
@@ -41,22 +43,25 @@ public:
         if (mDone.load(std::memory_order_acquire)) {
             return;
         }
-        const ObserverPtr a = mDownstream;
-        const GAny v = mValue;
-        if (v == nullptr) {
-            mValue = t;
-            a->onNext(t);
-        } else {
-            GAny u;
-            try {
-                u = mAccumulator(v, t);
-            } catch (const std::exception &e) {
-                mUpstream->dispose();
-                onError(GAnyException(e.what()));
-                return;
+        if (const auto a = mDownstream) {
+            const GAny v = mValue;
+            if (v == nullptr) {
+                mValue = t;
+                a->onNext(t);
+            } else {
+                GAny u;
+                try {
+                    u = mAccumulator(v, t);
+                } catch (const std::exception &e) {
+                    if (const auto up = mUpstream) {
+                        up->dispose();
+                    }
+                    onError(GAnyException(e.what()));
+                    return;
+                }
+                mValue = u;
+                a->onNext(u);
             }
-            mValue = u;
-            a->onNext(u);
         }
     }
 
@@ -66,7 +71,12 @@ public:
             return;
         }
         mDone.store(true, std::memory_order_release);
-        mDownstream->onError(e);
+        if (const auto d = mDownstream) {
+            d->onError(e);
+        }
+    
+        mDownstream = nullptr;
+        mUpstream = nullptr;
     }
 
     void onComplete() override
@@ -75,17 +85,29 @@ public:
             return;
         }
         mDone.store(true, std::memory_order_release);
-        mDownstream->onComplete();
+        if (const auto d = mDownstream) {
+            d->onComplete();
+        }
+    
+        mDownstream = nullptr;
+        mUpstream = nullptr;
     }
 
     void dispose() override
     {
-        mUpstream->dispose();
+        if (const auto d = mUpstream) {
+            d->dispose();
+            mUpstream = nullptr;
+        }
+        mDownstream = nullptr;
     }
 
     bool isDisposed() const override
     {
-        return mUpstream->isDisposed();
+        if (const auto d = mUpstream) {
+            return d->isDisposed();
+        }
+        return true;
     }
 
 private:

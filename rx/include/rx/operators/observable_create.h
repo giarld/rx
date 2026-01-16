@@ -34,7 +34,7 @@ public:
         //     return;
         // }
         if (!isDisposed()) {
-            if (const auto o = mDownstream.lock()) {
+            if (const auto o = mDownstream) {
                 o->onNext(value);
             }
         }
@@ -44,7 +44,7 @@ public:
     {
         if (!isDisposed()) {
             try {
-                if (const auto o = mDownstream.lock()) {
+                if (const auto o = mDownstream) {
                     o->onError(e);
                 }
             } catch (GAnyException _e) {
@@ -57,7 +57,7 @@ public:
     {
         if (!isDisposed()) {
             try {
-                if (const auto o = mDownstream.lock()) {
+                if (const auto o = mDownstream) {
                     o->onComplete();
                 }
             } catch (GAnyException _e) {
@@ -69,7 +69,7 @@ public:
     void dispose() override
     {
         DisposableHelper::dispose(mDisposable, mLock);
-        mDownstream.reset();
+        mDownstream = nullptr;
     }
 
     bool isDisposed() const override
@@ -83,7 +83,7 @@ public:
     }
 
 private:
-    std::weak_ptr<Observer> mDownstream;
+    ObserverPtr mDownstream;
     DisposablePtr mDisposable = nullptr;
     GMutex mLock;
 };

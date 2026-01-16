@@ -38,12 +38,16 @@ public:
 
     void onNext(const GAny &value) override
     {
-        mDownstream->onNext(value);
+        if (const auto d = mDownstream) {
+            d->onNext(value);
+        }
     }
 
     void onError(const GAnyException &e) override
     {
-        mDownstream->onNext(e);
+        if (const auto d = mDownstream) {
+            d->onError(e);
+        }
         cleanup();
     }
 
@@ -56,7 +60,9 @@ public:
         if (r != 0) {
             subscribeNext();
         } else {
-            mDownstream->onComplete();
+            if (const auto d = mDownstream) {
+                d->onComplete();
+            }
             cleanup();
         }
     }

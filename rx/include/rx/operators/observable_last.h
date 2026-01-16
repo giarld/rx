@@ -31,7 +31,9 @@ public:
     {
         if (DisposableHelper::validate(mUpstream, d)) {
             mUpstream = d;
-            mDownstream->onSubscribe(this->shared_from_this());
+            if (const auto ds = mDownstream) {
+                ds->onSubscribe(this->shared_from_this());
+            }
         }
     }
 
@@ -51,8 +53,10 @@ public:
         if (mDone.exchange(true, std::memory_order_acq_rel)) {
             return;
         }
-        mDownstream->onError(e);
-
+        if (const auto d = mDownstream) {
+            d->onError(e);
+        }
+        
         mDownstream = nullptr;
         mUpstream = nullptr;
     }
@@ -62,20 +66,22 @@ public:
         if (mDone.exchange(true, std::memory_order_acq_rel)) {
             return;
         }
-
-        if (mHasValue) {
-            // 发出最后一个值
-            mDownstream->onNext(mLastValue);
-            mDownstream->onComplete();
-        } else if (mHasDefault) {
-            // 没有值但有默认值
-            mDownstream->onNext(mDefaultValue);
-            mDownstream->onComplete();
-        } else {
-            // 没有值也没有默认值，发出错误
-            mDownstream->onError(GAnyException("No elements in sequence"));
+        
+        if (const auto d = mDownstream) {
+            if (mHasValue) {
+                // 发出最后一个值
+                d->onNext(mLastValue);
+                d->onComplete();
+            } else if (mHasDefault) {
+                // 没有值但有默认值
+                d->onNext(mDefaultValue);
+                d->onComplete();
+            } else {
+                // 没有值也没有默认值，发出错误
+                d->onError(GAnyException("No elements in sequence"));
+            }
         }
-
+        
         mDownstream = nullptr;
         mUpstream = nullptr;
     }

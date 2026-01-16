@@ -31,7 +31,9 @@ public:
     {
         if (DisposableHelper::validate(mUpstream, d)) {
             mUpstream = d;
-            mDownstream->onSubscribe(this->shared_from_this());
+            if (const auto ds = mDownstream) {
+                ds->onSubscribe(this->shared_from_this());
+            }
         }
     }
 
@@ -42,16 +44,20 @@ public:
 
     void onError(const GAnyException &e) override
     {
-        mDownstream->onError(e);
-
+        if (const auto d = mDownstream) {
+            d->onError(e);
+        }
+        
         mDownstream = nullptr;
         mUpstream = nullptr;
     }
 
     void onComplete() override
     {
-        mDownstream->onComplete();
-
+        if (const auto d = mDownstream) {
+            d->onComplete();
+        }
+        
         mDownstream = nullptr;
         mUpstream = nullptr;
     }

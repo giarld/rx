@@ -34,7 +34,9 @@ public:
     {
         if (DisposableHelper::validate(mUpstream, d)) {
             mUpstream = d;
-            mDownstream->onSubscribe(this->shared_from_this());
+            if (const auto ds = mDownstream) {
+                ds->onSubscribe(this->shared_from_this());
+            }
         }
     }
 
@@ -49,7 +51,9 @@ public:
         {
             GLockerGuard lock(mQueueLock);
             mQueue.push([d, value] {
-                d->onNext(value);
+                if (d) {
+                    d->onNext(value);
+                }
             });
         }
         schedule();
@@ -67,7 +71,9 @@ public:
         {
             GLockerGuard lock(mQueueLock);
             mQueue.push([weakThiz, d, e] {
-                d->onError(e);
+                if (d) {
+                    d->onError(e);
+                }
                 if (const auto thiz = weakThiz.lock()) {
                     thiz->disposeWorker();
                 }
@@ -88,7 +94,9 @@ public:
         {
             GLockerGuard lock(mQueueLock);
             mQueue.push([weakThiz, d] {
-                d->onComplete();
+                if (d) {
+                    d->onComplete();
+                }
                 if (const auto thiz = weakThiz.lock()) {
                     thiz->disposeWorker();
                 }

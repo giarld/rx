@@ -31,7 +31,9 @@ public:
     {
         if (DisposableHelper::validate(mUpstream, d)) {
             mUpstream = d;
-            mDownstream->onSubscribe(this->shared_from_this());
+            if (const auto ds = mDownstream) {
+                ds->onSubscribe(this->shared_from_this());
+            }
         }
     }
 
@@ -49,7 +51,9 @@ public:
             return;
         }
         if (b) {
-            mDownstream->onNext(value);
+            if (const auto d = mDownstream) {
+                d->onNext(value);
+            }
         }
     }
 
@@ -58,7 +62,9 @@ public:
         if (mDone.exchange(true, std::memory_order_acq_rel)) {
             return;
         }
-        mDownstream->onError(e);
+        if (const auto d = mDownstream) {
+            d->onError(e);
+        }
 
         mDownstream = nullptr;
         mUpstream = nullptr;
@@ -69,7 +75,9 @@ public:
         if (mDone.exchange(true, std::memory_order_acq_rel)) {
             return;
         }
-        mDownstream->onComplete();
+        if (const auto d = mDownstream) {
+            d->onComplete();
+        }
 
         mDownstream = nullptr;
         mUpstream = nullptr;

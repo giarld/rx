@@ -80,7 +80,9 @@ public:
     {
         if (DisposableHelper::validate(mUpstream, d)) {
             mUpstream = d;
-            mDownstream->onSubscribe(this->shared_from_this());
+            if (const auto ds = mDownstream) {
+                ds->onSubscribe(this->shared_from_this());
+            }
         }
     }
 
@@ -115,16 +117,24 @@ public:
         if (mDown.exchange(true, std::memory_order_acq_rel)) {
             return;
         }
-        mDownstream->onError(e);
-        dispose();
+        if (const auto d = mDownstream) {
+            d->onError(e);
+        }
+
+        mDownstream = nullptr;
+        mUpstream = nullptr;
     }
 
     void onComplete() override
     {
         if (mActiveCount.fetch_sub(1) == 1) {
             if (!mDown.exchange(true, std::memory_order_acq_rel)) {
-                mDownstream->onComplete();
-                dispose();
+                if (const auto d = mDownstream) {
+                    d->onComplete();
+                }
+
+                mDownstream = nullptr;
+                mUpstream = nullptr;
             }
         }
     }
@@ -142,6 +152,8 @@ public:
                 pair.second->dispose();
             }
             mInnerObservers.clear();
+
+            mDownstream = nullptr;
         }
     }
 
@@ -156,7 +168,9 @@ public:
             return;
 
         GLockerGuard lock(mGate);
-        mDownstream->onNext(value);
+        if (const auto d = mDownstream) {
+            d->onNext(value);
+        }
     }
 
     void innerError(const GAnyException &e)
@@ -165,7 +179,9 @@ public:
             return;
         }
         dispose();
-        mDownstream->onError(e);
+        if (const auto d = mDownstream) {
+            d->onError(e);
+        }
     }
 
     void innerComplete(uint64_t id)
@@ -173,7 +189,9 @@ public:
         removeInner(id);
         if (mActiveCount.fetch_sub(1) == 1) {
             if (!mDown.exchange(true, std::memory_order_acq_rel)) {
-                mDownstream->onComplete();
+                if (const auto d = mDownstream) {
+                    d->onComplete();
+                }
             }
         }
     }

@@ -26,20 +26,22 @@ public:
     }
 
 public:
-    void run() const
+    void run()
     {
         if (!isDisposed()) {
-            if (const auto o = mDownstream.lock()) {
+            if (const auto o = mDownstream) {
                 for (int64_t i = mStart; i < mEnd; i++) {
                     o->onNext(i);
                 }
                 o->onComplete();
+
+                mDownstream = nullptr;
             }
         }
     }
 
 private:
-    std::weak_ptr<Observer> mDownstream;
+    ObserverPtr mDownstream;
     int64_t mStart;
     int64_t mEnd;
 };

@@ -26,14 +26,15 @@ public:
     }
 
 public:
-    void run() const
+    void run()
     {
-        if (const auto d = mDownstream.lock()) {
+        if (const auto d = mDownstream) {
             for (size_t i = 0; i < mArray.size() && !isDisposed(); ++i) {
                 d->onNext(mArray[i]);
             }
             if (!isDisposed()) {
                 d->onComplete();
+                mDownstream = nullptr;
             }
         }
     }
@@ -41,6 +42,7 @@ public:
     void dispose() override
     {
         mDisposed.store(true, std::memory_order_release);
+        mDownstream = nullptr;
     }
 
     bool isDisposed() const override
@@ -49,7 +51,7 @@ public:
     }
 
 private:
-    std::weak_ptr<Observer> mDownstream;
+    ObserverPtr mDownstream;
     std::vector<GAny> mArray;
     std::atomic<bool> mDisposed = false;
 };

@@ -29,6 +29,7 @@ public:
     void dispose() override
     {
         mDisposed.store(true, std::memory_order_release);
+        mDownstream = nullptr;
     }
 
     bool isDisposed() const override
@@ -36,18 +37,20 @@ public:
         return mDisposed.load(std::memory_order_acquire);
     }
 
-    void run() const
+    void run()
     {
         if (!isDisposed()) {
-            if (const auto o = mDownstream.lock()) {
+            if (const auto o = mDownstream) {
                 o->onNext(mValue);
                 o->onComplete();
+
+                mDownstream = nullptr;
             }
         }
     }
 
 private:
-    std::weak_ptr<Observer> mDownstream;
+    ObserverPtr mDownstream;
     GAny mValue;
     std::atomic<bool> mDisposed = false;
 };
