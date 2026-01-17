@@ -5,6 +5,7 @@
 #include "rx/observable.h"
 
 #include "rx/operators/observable_buffer.h"
+#include "rx/operators/observable_combine_latest.h"
 #include "rx/operators/observable_create.h"
 #include "rx/operators/observable_defer.h"
 #include "rx/operators/observable_delay.h"
@@ -143,6 +144,12 @@ std::shared_ptr<Observable> Observable::range(int64_t start, uint64_t count)
     }
 
     return std::make_shared<ObservableRange>(start, count);
+}
+
+std::shared_ptr<Observable> Observable::combineLatestArray(const std::vector<std::shared_ptr<Observable> > &sources,
+                                                           const CombineLatestFunction &combiner)
+{
+    return std::make_shared<ObservableCombineLatest>(sources, combiner);
 }
 
 std::shared_ptr<Observable> Observable::fromCallable(const Callable &callable)

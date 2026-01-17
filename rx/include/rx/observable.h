@@ -21,6 +21,7 @@ using FlatMapFunction = std::function<std::shared_ptr<Observable>(const GAny &v)
 using FilterFunction = std::function<bool(const GAny &v)>;
 using Callable = std::function<GAny()>;
 using BiFunction = std::function<GAny(const GAny &last, const GAny &item)>;
+using CombineLatestFunction = std::function<GAny(const std::vector<GAny> &values)>;
 
 class GX_API Observable : public ObservableSource, public std::enable_shared_from_this<Observable>
 {
@@ -70,6 +71,9 @@ public:
     static std::shared_ptr<Observable> timer(uint64_t delay);
 
     static std::shared_ptr<Observable> range(int64_t start, uint64_t count);
+
+    static std::shared_ptr<Observable> combineLatestArray(const std::vector<std::shared_ptr<Observable> > &sources,
+                                                          const CombineLatestFunction &combiner);
 
     static std::shared_ptr<Observable> fromCallable(const Callable &callable);
 
