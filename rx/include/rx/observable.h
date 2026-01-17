@@ -75,6 +75,9 @@ public:
     static std::shared_ptr<Observable> combineLatestArray(const std::vector<std::shared_ptr<Observable> > &sources,
                                                           const CombineLatestFunction &combiner);
 
+    static std::shared_ptr<Observable> combineLatest(const std::shared_ptr<Observable> &source1, const std::shared_ptr<Observable> &source2,
+                                                     const BiFunction &combiner);
+
     static std::shared_ptr<Observable> fromCallable(const Callable &callable);
 
 

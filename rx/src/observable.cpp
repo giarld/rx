@@ -152,6 +152,13 @@ std::shared_ptr<Observable> Observable::combineLatestArray(const std::vector<std
     return std::make_shared<ObservableCombineLatest>(sources, combiner);
 }
 
+std::shared_ptr<Observable> Observable::combineLatest(const std::shared_ptr<Observable> &source1, const std::shared_ptr<Observable> &source2, const BiFunction &combiner)
+{
+    return combineLatestArray({source1, source2}, [combiner](const std::vector<GAny> &values) {
+        return combiner(values[0], values[1]);
+    });
+}
+
 std::shared_ptr<Observable> Observable::fromCallable(const Callable &callable)
 {
     return create([callable](const ObservableEmitterPtr &emitter) {

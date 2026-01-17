@@ -196,6 +196,25 @@ mainScheduler->run();
 
 ## 操作符
 
+### 创建操作符
+
+创建操作符用于生成新的 Observable。
+
+**静态方法：**
+
+- `create(ObservableOnSubscribe)` - 使用自定义逻辑创建
+- `just(T...)` - 发射 1-10 个指定的值
+- `fromArray(vector<GAny>)` - 从数组创建
+- `range(start, count)` - 发射一个整数范围
+- `interval(delay, interval)` - 定期发射递增的整数
+- `timer(delay)` - 延迟后发射单个值
+- `empty()` - 创建立即完成的 Observable
+- `never()` - 创建永不发射也不完成的 Observable
+- `error(Exception)` - 创建立即发送错误的 Observable
+- `defer(ObservableSource)` - 延迟创建 Observable
+
+详见 [Observable 静态方法](#observable-静态方法) 部分的代码示例。
+
 ### 转换操作符
 
 #### map
@@ -348,7 +367,79 @@ Observable::just(1, 2, 3)
 // 输出: (无数据，仅完成)
 ```
 
+#### take
+
+只发射前 N 个数据项，然后完成。
+
+```cpp
+// 只取前 3 个元素
+Observable::range(0, 10)
+    ->take(3);
+// 输出: 0, 1, 2
+
+// 取 0 个元素（不发射任何数据，直接完成）
+Observable::just(1, 2, 3)
+    ->take(0);
+// 输出: (无数据，仅完成)
+
+// 取的数量大于总数（发射所有数据）
+Observable::just(1, 2, 3)
+    ->take(10);
+// 输出: 1, 2, 3
+```
+
+#### takeLast
+
+只发射最后 N 个数据项。
+
+```cpp
+// 只取最后 3 个元素
+Observable::range(0, 10)
+    ->takeLast(3);
+// 输出: 7, 8, 9
+
+// 取最后 0 个元素（不发射任何数据，直接完成）
+Observable::just(1, 2, 3)
+    ->takeLast(0);
+// 输出: (无数据，仅完成)
+
+// 取的数量大于总数（发射所有数据）
+Observable::just(1, 2, 3)
+    ->takeLast(10);
+// 输出: 1, 2, 3
+```
+
 ### 组合操作符
+
+#### combineLatest
+
+组合多个 Observable 的最新值，当任一 Observable 发射数据时，将所有 Observable 的最新值组合后发射。
+
+```cpp
+// 组合两个 Observable
+auto obs1 = Observable::just(1, 2, 3);
+auto obs2 = Observable::just("A", "B", "C");
+
+Observable::combineLatest(obs1, obs2, 
+    [](const GAny &v1, const GAny &v2) {
+        return v1.toString() + v2.toString();
+    });
+// 当两个都有值时开始发射组合结果
+// 输出: 3A, 3B, 3C (假设obs1先完成)
+
+// 组合多个数据流
+auto timer1 = Observable::interval(0, 100);
+auto timer2 = Observable::interval(0, 150);
+
+Observable::combineLatest(timer1, timer2,
+    [](const GAny &v1, const GAny &v2) {
+        return GAny::object({
+            {"timer1", v1},
+            {"timer2", v2}
+        });
+    });
+// 每当任一定时器触发时，发射两个定时器的最新值组合
+```
 
 #### buffer
 
@@ -388,6 +479,28 @@ Observable::just(1, 2, 3, 4)
 // 输出: 1, 3, 6, 10
 ```
 
+### 时间操作符
+
+#### delay
+
+延迟一段时间后再发射数据项。
+
+```cpp
+// 延迟 1000ms 后发射所有数据
+Observable::just(1, 2, 3)
+    ->delay(1000);
+// 输出: (1秒后) 1, 2, 3
+
+// 配合调度器使用
+auto scheduler = MainThreadScheduler::create();
+Observable::range(0, 5)
+    ->delay(500, scheduler)
+    ->subscribe([](const GAny &v) {
+        std::cout << "Delayed: " << v.toString() << std::endl;
+    });
+// 在指定调度器上延迟发射
+```
+
 ### 辅助操作符
 
 #### repeat
@@ -421,6 +534,8 @@ Observable::just(1, 2, 3)
 ```
 
 ## 完整示例
+
+### 基础链式操作
 
 ```cpp
 #define USE_GANY_CORE
@@ -467,6 +582,102 @@ int main() {
     mainScheduler->run();
     
     // 检查内存泄漏
+    LeakObserver::checkLeak();
+    
+    return 0;
+}
+```
+
+### 高级组合示例
+
+```cpp
+#define USE_GANY_CORE
+#include <gx/gany.h>
+#include <rx/rx.h>
+
+using namespace rx;
+
+int main() {
+    initGAnyCore();
+    
+    auto mainScheduler = GTimerScheduler::create("MainScheduler");
+    mainScheduler->start();
+    GTimerScheduler::makeGlobal(mainScheduler);
+    
+    auto timerScheduler = MainThreadScheduler::create();
+    
+    // 示例 1: 使用 take 和 skip 组合
+    std::cout << "Example 1: take & skip" << std::endl;
+    Observable::range(0, 20)
+        ->skip(5)        // 跳过前 5 个: 0-4
+        ->take(10)       // 只取接下来的 10 个: 5-14
+        ->subscribe([](const GAny &v) {
+            std::cout << v.toString() << " ";
+        });
+    std::cout << std::endl;
+    
+    // 示例 2: 使用 first 和 last
+    std::cout << "Example 2: first & last" << std::endl;
+    Observable::range(1, 10)
+        ->first()
+        ->subscribe([](const GAny &v) {
+            std::cout << "First: " << v.toString() << std::endl;
+        });
+    
+    Observable::range(1, 10)
+        ->last()
+        ->subscribe([](const GAny &v) {
+            std::cout << "Last: " << v.toString() << std::endl;
+        });
+    
+    // 示例 3: 使用 scan 计算累加和
+    std::cout << "Example 3: scan for accumulation" << std::endl;
+    Observable::range(1, 10)
+        ->scan([](const GAny &last, const GAny &item) {
+            return last.toInt32() + item.toInt32();
+        })
+        ->subscribe([](const GAny &v) {
+            std::cout << "Sum: " << v.toString() << std::endl;
+        });
+    
+    // 示例 4: 使用 combineLatest 组合数据流
+    std::cout << "Example 4: combineLatest" << std::endl;
+    auto timer1 = Observable::interval(0, 100)->take(5);
+    auto timer2 = Observable::interval(0, 150)->take(5);
+    
+    Observable::combineLatest(timer1, timer2,
+        [](const GAny &v1, const GAny &v2) {
+            return "T1:" + v1.toString() + ",T2:" + v2.toString();
+        })
+        ->subscribe([](const GAny &v) {
+            std::cout << v.toString() << std::endl;
+        });
+    
+    // 示例 5: 使用 delay 延迟执行
+    std::cout << "Example 5: delay execution" << std::endl;
+    Observable::just("Hello", "World")
+        ->delay(1000, timerScheduler)
+        ->subscribe([](const GAny &v) {
+            std::cout << "Delayed: " << v.toString() << std::endl;
+        });
+    
+    // 示例 6: 复杂的操作符链
+    std::cout << "Example 6: complex operator chain" << std::endl;
+    Observable::range(1, 100)
+        ->filter([](const GAny &v) {
+            return v.toInt32() % 3 == 0;  // 只保留 3 的倍数
+        })
+        ->map([](const GAny &v) {
+            return v.toInt32() * v.toInt32();  // 平方
+        })
+        ->skipLast(5)    // 跳过最后 5 个
+        ->takeLast(10)   // 只取最后 10 个
+        ->buffer(3)      // 每 3 个一组
+        ->subscribe([](const GAny &v) {
+            std::cout << "Group: " << v.toString() << std::endl;
+        });
+    
+    mainScheduler->run();
     LeakObserver::checkLeak();
     
     return 0;
@@ -552,7 +763,11 @@ rx/
 | `ignoreElements()` | 忽略所有数据项，只传递完成或错误 |
 | `skip(count)` | 跳过前 N 个数据项 |
 | `skipLast(count)` | 跳过最后 N 个数据项 |
+| `take(count)` | 只发射前 N 个数据项 |
+| `takeLast(count)` | 只发射最后 N 个数据项 |
+| `combineLatest(obs1, obs2, combiner)` | 组合多个 Observable 的最新值 |
 | `buffer(count[, skip])` | 缓存数据项为数组 |
+| `delay(time[, scheduler])` | 延迟发射数据项 |
 | `scan(accumulator)` | 对数据流应用累加器函数并发射每次结果 |
 | `repeat(times)` | 重复数据流 |
 | `subscribeOn(scheduler)` | 指定订阅的调度器 |
@@ -567,6 +782,8 @@ rx/
 4. **避免副作用**：操作符函数应尽量保持纯函数特性
 5. **链式调用**：充分利用操作符组合来构建复杂逻辑
 6. **正确初始化调度器**：使用 MainThreadScheduler 前必须先创建并启动全局 GTimerScheduler
+7. **合理使用操作符**：根据场景选择合适的操作符，如 take/skip 用于限制数据量，first/last 用于获取特定位置的数据
+8. **注意内存管理**：使用 LeakObserver::checkLeak() 检查内存泄漏
 
 ## 许可证
 
