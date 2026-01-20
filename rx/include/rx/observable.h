@@ -36,7 +36,7 @@ public:
     static std::shared_ptr<Observable> fromArray(const std::vector<GAny> &array);
 
     template<typename... Args>
-    static std::shared_ptr<Observable> just(Args &&...sources)
+    static std::shared_ptr<Observable> just(Args &&... sources)
     {
         if constexpr (sizeof...(Args) == 1) {
             return justOne(std::forward<Args>(sources)...);
@@ -118,6 +118,16 @@ public:
                                      const FlatMapFunction &leftDurationSelector,
                                      const FlatMapFunction &rightDurationSelector,
                                      const BiFunction &resultSelector);
+
+    std::shared_ptr<Observable> startWith(const GAny &item);
+
+    std::shared_ptr<Observable> startWithArray(const std::vector<GAny> &items);
+
+    template<typename... Args>
+    std::shared_ptr<Observable> startWith(Args &&... items)
+    {
+        return startWithArray({std::forward<Args>(items)...});
+    }
 
 
     std::shared_ptr<Observable> subscribeOn(SchedulerPtr scheduler);

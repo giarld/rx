@@ -473,6 +473,26 @@ Observable::range(1, 10)
 // 输出: [1,2,3], [3,4,5], [5,6,7], [7,8,9], [9,10]
 ```
 
+#### startWith
+
+在数据流开始之前插入指定的数据项。
+
+```cpp
+Observable::just(1, 2, 3)
+    ->startWith(0)
+    ->subscribe([](const GAny &v) {
+        std::cout << v.toString() << " ";
+    });
+// 输出: 0 1 2 3
+
+Observable::just("C", "D")
+    ->startWith("A", "B")
+    ->subscribe([](const GAny &v) {
+        std::cout << v.toString() << " ";
+    });
+// 输出: A B C D
+```
+
 ### 聚合操作符
 
 #### scan
@@ -784,6 +804,7 @@ rx/
 | `takeLast(count)` | 只发射最后 N 个数据项 |
 | `combineLatest(obs1, obs2, combiner)` | 组合多个 Observable 的最新值 |
 | `join(other, leftDuration, rightDuration, combiner)` | 当两个数据流的时间窗口重叠时组合它们 |
+| `startWith(items...)` | 在数据流开始前插入指定数据项 |
 | `buffer(count[, skip])` | 缓存数据项为数组 |
 | `delay(time[, scheduler])` | 延迟发射数据项 |
 | `scan(accumulator)` | 对数据流应用累加器函数并发射每次结果 |

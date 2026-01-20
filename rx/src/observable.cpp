@@ -28,6 +28,7 @@
 #include "rx/operators/observable_scan.h"
 #include "rx/operators/observable_skip.h"
 #include "rx/operators/observable_skip_last.h"
+#include "rx/operators/observable_start_with.h"
 #include "rx/operators/observable_subscribe_on.h"
 #include "rx/operators/observable_take.h"
 #include "rx/operators/observable_take_last.h"
@@ -271,6 +272,16 @@ std::shared_ptr<Observable> Observable::join(const std::shared_ptr<Observable> &
         rightDurationSelector,
         resultSelector
     );
+}
+
+std::shared_ptr<Observable> Observable::startWith(const GAny &item)
+{
+    return std::make_shared<ObservableStartWith>(shared_from_this(), std::vector<GAny>{item});
+}
+
+std::shared_ptr<Observable> Observable::startWithArray(const std::vector<GAny> &items)
+{
+    return std::make_shared<ObservableStartWith>(shared_from_this(), items);
 }
 
 
