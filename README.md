@@ -766,6 +766,7 @@ rx/
 | `take(count)` | 只发射前 N 个数据项 |
 | `takeLast(count)` | 只发射最后 N 个数据项 |
 | `combineLatest(obs1, obs2, combiner)` | 组合多个 Observable 的最新值 |
+| `join(other, leftDuration, rightDuration, combiner)` | 当两个数据流的时间窗口重叠时组合它们 |
 | `buffer(count[, skip])` | 缓存数据项为数组 |
 | `delay(time[, scheduler])` | 延迟发射数据项 |
 | `scan(accumulator)` | 对数据流应用累加器函数并发射每次结果 |

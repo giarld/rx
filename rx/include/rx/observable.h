@@ -120,6 +120,11 @@ public:
 
     std::shared_ptr<Observable> delay(uint64_t delay, SchedulerPtr scheduler = nullptr);
 
+    std::shared_ptr<Observable> join(const std::shared_ptr<Observable> &other,
+                                     const FlatMapFunction &leftDurationSelector,
+                                     const FlatMapFunction &rightDurationSelector,
+                                     const BiFunction &resultSelector);
+
 
     std::shared_ptr<Observable> subscribeOn(SchedulerPtr scheduler);
 

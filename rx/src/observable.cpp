@@ -17,6 +17,7 @@
 #include "rx/operators/observable_from_array.h"
 #include "rx/operators/observable_ignore_elements.h"
 #include "rx/operators/observable_interval.h"
+#include "rx/operators/observable_join.h"
 #include "rx/operators/observable_just.h"
 #include "rx/operators/observable_last.h"
 #include "rx/operators/observable_map.h"
@@ -284,6 +285,20 @@ std::shared_ptr<Observable> Observable::delay(uint64_t delay, SchedulerPtr sched
         scheduler = MainThreadScheduler::create();
     }
     return std::make_shared<ObservableDelay>(this->shared_from_this(), delay, scheduler);
+}
+
+std::shared_ptr<Observable> Observable::join(const std::shared_ptr<Observable> &other,
+                                             const FlatMapFunction &leftDurationSelector,
+                                             const FlatMapFunction &rightDurationSelector,
+                                             const BiFunction &resultSelector)
+{
+    return std::make_shared<ObservableJoin>(
+        this->shared_from_this(),
+        other,
+        leftDurationSelector,
+        rightDurationSelector,
+        resultSelector
+    );
 }
 
 
