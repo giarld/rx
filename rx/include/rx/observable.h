@@ -33,32 +33,16 @@ public:
 
     static std::shared_ptr<Observable> empty();
 
-    static std::shared_ptr<Observable> just(const GAny &value);
-
-    static std::shared_ptr<Observable> just(const GAny &item1, const GAny &item2);
-
-    static std::shared_ptr<Observable> just(const GAny &item1, const GAny &item2, const GAny &item3);
-
-    static std::shared_ptr<Observable> just(const GAny &item1, const GAny &item2, const GAny &item3, const GAny &item4);
-
-    static std::shared_ptr<Observable> just(const GAny &item1, const GAny &item2, const GAny &item3, const GAny &item4, const GAny &item5);
-
-    static std::shared_ptr<Observable> just(const GAny &item1, const GAny &item2, const GAny &item3, const GAny &item4, const GAny &item5,
-                                            const GAny &item6);
-
-    static std::shared_ptr<Observable> just(const GAny &item1, const GAny &item2, const GAny &item3, const GAny &item4, const GAny &item5,
-                                            const GAny &item6, const GAny &item7);
-
-    static std::shared_ptr<Observable> just(const GAny &item1, const GAny &item2, const GAny &item3, const GAny &item4, const GAny &item5,
-                                            const GAny &item6, const GAny &item7, const GAny &item8);
-
-    static std::shared_ptr<Observable> just(const GAny &item1, const GAny &item2, const GAny &item3, const GAny &item4, const GAny &item5,
-                                            const GAny &item6, const GAny &item7, const GAny &item8, const GAny &item9);
-
-    static std::shared_ptr<Observable> just(const GAny &item1, const GAny &item2, const GAny &item3, const GAny &item4, const GAny &item5,
-                                            const GAny &item6, const GAny &item7, const GAny &item8, const GAny &item9, const GAny &item10);
-
     static std::shared_ptr<Observable> fromArray(const std::vector<GAny> &array);
+
+    template<typename... Args>
+    static std::shared_ptr<Observable> just(Args &&...sources)
+    {
+        if constexpr (sizeof...(Args) == 1) {
+            return justOne(std::forward<Args>(sources)...);
+        }
+        return fromArray({std::forward<Args>(sources)...});
+    }
 
     static std::shared_ptr<Observable> never();
 
@@ -79,6 +63,16 @@ public:
                                                      const BiFunction &combiner);
 
     static std::shared_ptr<Observable> fromCallable(const Callable &callable);
+
+    static std::shared_ptr<Observable> merge(const std::shared_ptr<Observable> &source);
+
+    static std::shared_ptr<Observable> mergeArray(const std::vector<std::shared_ptr<Observable> > &sources);
+
+    template<typename... Args>
+    static std::shared_ptr<Observable> merge(Args &&... sources)
+    {
+        return mergeArray({std::forward<Args>(sources)...});
+    }
 
 
     std::shared_ptr<Observable> map(const MapFunction &function);
@@ -139,6 +133,9 @@ public:
     {
         return subscribe(next, nullptr, nullptr);
     }
+
+private:
+    static std::shared_ptr<Observable> justOne(const GAny &value);
 
 protected:
     virtual void subscribeActual(const ObserverPtr &observer) = 0;

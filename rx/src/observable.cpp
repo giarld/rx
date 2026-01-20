@@ -47,59 +47,6 @@ std::shared_ptr<Observable> Observable::empty()
     return std::make_shared<ObservableEmpty>();
 }
 
-std::shared_ptr<Observable> Observable::just(const GAny &value)
-{
-    return std::make_shared<ObservableJust>(value);
-}
-
-std::shared_ptr<Observable> Observable::just(const GAny &item1, const GAny &item2)
-{
-    return fromArray({item1, item2});
-}
-
-std::shared_ptr<Observable> Observable::just(const GAny &item1, const GAny &item2, const GAny &item3)
-{
-    return fromArray({item1, item2, item3});
-}
-
-std::shared_ptr<Observable> Observable::just(const GAny &item1, const GAny &item2, const GAny &item3, const GAny &item4)
-{
-    return fromArray({item1, item2, item3, item4});
-}
-
-std::shared_ptr<Observable> Observable::just(const GAny &item1, const GAny &item2, const GAny &item3, const GAny &item4, const GAny &item5)
-{
-    return fromArray({item1, item2, item3, item4, item5});
-}
-
-std::shared_ptr<Observable> Observable::just(const GAny &item1, const GAny &item2, const GAny &item3, const GAny &item4, const GAny &item5, const GAny &item6)
-{
-    return fromArray({item1, item2, item3, item4, item5, item6});
-}
-
-std::shared_ptr<Observable> Observable::just(const GAny &item1, const GAny &item2, const GAny &item3, const GAny &item4, const GAny &item5, const GAny &item6, const GAny &item7)
-{
-    return fromArray({item1, item2, item3, item4, item5, item6, item7});
-}
-
-std::shared_ptr<Observable> Observable::just(const GAny &item1, const GAny &item2, const GAny &item3, const GAny &item4, const GAny &item5,
-                                             const GAny &item6, const GAny &item7, const GAny &item8)
-{
-    return fromArray({item1, item2, item3, item4, item5, item6, item7, item8});
-}
-
-std::shared_ptr<Observable> Observable::just(const GAny &item1, const GAny &item2, const GAny &item3, const GAny &item4, const GAny &item5, const GAny &item6, const GAny &item7,
-                                             const GAny &item8, const GAny &item9)
-{
-    return fromArray({item1, item2, item3, item4, item5, item6, item7, item8, item9});
-}
-
-std::shared_ptr<Observable> Observable::just(const GAny &item1, const GAny &item2, const GAny &item3, const GAny &item4, const GAny &item5,
-                                             const GAny &item6, const GAny &item7, const GAny &item8, const GAny &item9, const GAny &item10)
-{
-    return fromArray({item1, item2, item3, item4, item5, item6, item7, item8, item9, item10});
-}
-
 std::shared_ptr<Observable> Observable::fromArray(const std::vector<GAny> &array)
 {
     return std::make_shared<ObservableFromArray>(array);
@@ -175,6 +122,31 @@ std::shared_ptr<Observable> Observable::fromCallable(const Callable &callable)
             emitter->onNext(r);
             emitter->onComplete();
         }
+    });
+}
+
+std::shared_ptr<Observable> Observable::merge(const std::shared_ptr<Observable> &source)
+{
+    return source->flatMap([](const GAny &value) -> std::shared_ptr<Observable> {
+        try {
+            return value.castAs<std::shared_ptr<Observable> >();
+        } catch (...) {
+            return Observable::error(GAnyException("Observable::merge: Element is not an Observable"));
+        }
+    });
+}
+
+std::shared_ptr<Observable> Observable::mergeArray(const std::vector<std::shared_ptr<Observable> > &sources)
+{
+    std::vector<GAny> sourceAnys;
+    sourceAnys.reserve(sources.size());
+    for (const auto &s: sources) {
+        sourceAnys.push_back(s);
+    }
+
+    const auto sourcesObservable = Observable::fromArray(sourceAnys);
+    return sourcesObservable->flatMap([](const GAny &value) -> std::shared_ptr<Observable> {
+        return value.castAs<std::shared_ptr<Observable> >();
     });
 }
 
@@ -324,5 +296,10 @@ DisposablePtr Observable::subscribe(const OnNextAction &next, const OnErrorActio
     subscribe(observer);
 
     return observer;
+}
+
+std::shared_ptr<Observable> Observable::justOne(const GAny &value)
+{
+    return std::make_shared<ObservableJust>(value);
 }
 } // rx
