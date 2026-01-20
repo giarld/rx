@@ -212,6 +212,7 @@ mainScheduler->run();
 - `never()` - 创建永不发射也不完成的 Observable
 - `error(Exception)` - 创建立即发送错误的 Observable
 - `defer(ObservableSource)` - 延迟创建 Observable
+- `merge(sources...)` - 合并多个 Observable
 
 详见 [Observable 静态方法](#observable-静态方法) 部分的代码示例。
 
@@ -439,6 +440,21 @@ Observable::combineLatest(timer1, timer2,
         });
     });
 // 每当任一定时器触发时，发射两个定时器的最新值组合
+```
+
+#### merge
+
+将多个 Observable 合并为一个。
+
+```cpp
+auto obs1 = Observable::just(1, 2);
+auto obs2 = Observable::just(3, 4);
+
+Observable::merge(obs1, obs2)
+    ->subscribe([](const GAny &v) {
+        std::cout << v.toString() << " ";
+    });
+// 输出: 1 2 3 4
 ```
 
 #### buffer
@@ -749,6 +765,7 @@ rx/
 | `never()` | 创建永不发射也不完成的 Observable |
 | `error(Exception)` | 创建立即发送错误的 Observable |
 | `defer(ObservableSource)` | 延迟创建 Observable |
+| `merge(sources...)` | 合并多个 Observable |
 
 ### Observable 实例方法
 
