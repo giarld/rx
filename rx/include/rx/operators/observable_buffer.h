@@ -30,8 +30,8 @@ public:
     void onSubscribe(const DisposablePtr &d) override
     {
         if (DisposableHelper::validate(mUpstream, d)) {
-            mUpstream = d;
             if (const auto ds = mDownstream) {
+                mUpstream = d;
                 ds->onSubscribe(this->shared_from_this());
             }
         }
@@ -115,8 +115,8 @@ public:
     void onSubscribe(const DisposablePtr &d) override
     {
         if (DisposableHelper::validate(mUpstream, d)) {
-            mUpstream = d;
             if (const auto ds = mDownstream) {
+                mUpstream = d;
                 ds->onSubscribe(this->shared_from_this());
             }
         }
@@ -128,15 +128,14 @@ public:
             if (mIndex++ % mSkip == 0) {
                 mBuffers.push_back({});
             }
-        
+
             for (auto it = mBuffers.begin(); it != mBuffers.end();) {
                 auto &buffer = *it;
                 buffer.push_back(value);
                 if (mCount <= buffer.size()) {
                     d->onNext(buffer);
                     it = mBuffers.erase(it);
-                }
-                else {
+                } else {
                     ++it;
                 }
             }
@@ -149,7 +148,7 @@ public:
         if (const auto d = mDownstream) {
             d->onError(e);
         }
-        
+
         mDownstream = nullptr;
         mUpstream = nullptr;
     }
@@ -163,7 +162,7 @@ public:
             mBuffers.clear();
             d->onComplete();
         }
-        
+
         mDownstream = nullptr;
         mUpstream = nullptr;
     }
@@ -191,7 +190,7 @@ private:
     uint64_t mCount;
     uint64_t mSkip;
     uint64_t mIndex = 0;
-    std::vector<std::vector<GAny>> mBuffers;
+    std::vector<std::vector<GAny> > mBuffers;
 };
 
 class ObservableBuffer : public Observable

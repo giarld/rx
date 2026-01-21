@@ -7,6 +7,7 @@
 #include "rx/operators/observable_buffer.h"
 #include "rx/operators/observable_combine_latest.h"
 #include "rx/operators/observable_create.h"
+#include "rx/operators/observable_debounce.h"
 #include "rx/operators/observable_defer.h"
 #include "rx/operators/observable_delay.h"
 #include "rx/operators/observable_element_at.h"
@@ -274,6 +275,14 @@ std::shared_ptr<Observable> Observable::delay(uint64_t delay, SchedulerPtr sched
         scheduler = MainThreadScheduler::create();
     }
     return std::make_shared<ObservableDelay>(this->shared_from_this(), delay, scheduler);
+}
+
+std::shared_ptr<Observable> Observable::debounce(uint64_t delay, SchedulerPtr scheduler)
+{
+    if (!scheduler) {
+        scheduler = MainThreadScheduler::create();
+    }
+    return std::make_shared<ObservableDebounce>(this->shared_from_this(), delay, scheduler);
 }
 
 std::shared_ptr<Observable> Observable::join(const std::shared_ptr<Observable> &other,

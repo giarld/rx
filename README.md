@@ -553,6 +553,54 @@ Observable::range(0, 5)
 // 在指定调度器上延迟发射
 ```
 
+#### debounce
+
+防抖动操作符，只有在指定的时间窗口内没有新数据项发射时，才会发射最新的数据项。常用于处理高频事件（如搜索输入、按钮点击）。
+
+```cpp
+// 基本用法：500ms 防抖
+auto scheduler = MainThreadScheduler::create();
+Observable::create([](const ObservableEmitterPtr &emitter) {
+        emitter->onNext("a");     // 0ms
+        GThread::mSleep(100);     // 100ms
+        emitter->onNext("ab");    // 100ms - 被新值覆盖
+        GThread::mSleep(100);     // 200ms
+        emitter->onNext("abc");   // 200ms - 被新值覆盖
+        GThread::mSleep(600);     // 800ms
+        // 此时 "abc" 在 800ms 时发射（200ms + 600ms > 500ms）
+        emitter->onNext("abcd");  // 800ms
+        GThread::mSleep(600);     // 1400ms
+        // "abcd" 在 1400ms 时发射
+        emitter->onComplete();
+        // 完成时发射最后的值 "abcd"（如果未发射）
+    })
+    ->debounce(500, scheduler)
+    ->subscribe([](const GAny &v) {
+        std::cout << "Debounced: " << v.toString() << std::endl;
+    });
+// 输出:
+// Debounced: abc   (在 800ms 时)
+// Debounced: abcd  (在 1400ms 时或完成时)
+
+// 实际应用场景：搜索输入
+Observable::create([](const ObservableEmitterPtr &emitter) {
+        // 模拟用户快速输入
+        emitter->onNext("r");
+        emitter->onNext("re");
+        emitter->onNext("rea");
+        emitter->onNext("reac");
+        emitter->onNext("react");  // 用户停止输入
+        GThread::mSleep(600);       // 等待超过 debounce 时间
+        emitter->onComplete();
+    })
+    ->debounce(300, scheduler)  // 300ms 防抖
+    ->subscribe([](const GAny &v) {
+        // 只会触发一次搜索请求
+        std::cout << "Searching for: " << v.toString() << std::endl;
+    });
+// 输出: Searching for: react
+```
+
 ### 辅助操作符
 
 #### repeat
@@ -824,6 +872,7 @@ rx/
 | `startWith(items...)` | 在数据流开始前插入指定数据项 |
 | `buffer(count[, skip])` | 缓存数据项为数组 |
 | `delay(time[, scheduler])` | 延迟发射数据项 |
+| `debounce(time[, scheduler])` | 防抖动，只在时间窗口内无新数据时发射最新值 |
 | `scan(accumulator)` | 对数据流应用累加器函数并发射每次结果 |
 | `repeat(times)` | 重复数据流 |
 | `subscribeOn(scheduler)` | 指定订阅的调度器 |

@@ -30,8 +30,8 @@ public:
     void onSubscribe(const DisposablePtr &d) override
     {
         if (DisposableHelper::validate(mUpstream, d)) {
-            mUpstream = d;
             if (const auto ds = mDownstream) {
+                mUpstream = d;
                 ds->onSubscribe(this->shared_from_this());
             }
         }
@@ -56,7 +56,7 @@ public:
         if (const auto d = mDownstream) {
             d->onError(e);
         }
-        
+
         mDownstream = nullptr;
         mUpstream = nullptr;
     }
@@ -66,7 +66,7 @@ public:
         if (mDone.exchange(true, std::memory_order_acq_rel)) {
             return;
         }
-        
+
         if (const auto d = mDownstream) {
             if (mHasValue) {
                 // 发出最后一个值
@@ -81,7 +81,7 @@ public:
                 d->onError(GAnyException("No elements in sequence"));
             }
         }
-        
+
         mDownstream = nullptr;
         mUpstream = nullptr;
     }

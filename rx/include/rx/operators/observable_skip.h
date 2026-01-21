@@ -30,8 +30,10 @@ public:
     void onSubscribe(const DisposablePtr &d) override
     {
         if (DisposableHelper::validate(mUpstream, d)) {
-            mUpstream = d;
-            mDownstream->onSubscribe(this->shared_from_this());
+            if (const auto ds = mDownstream) {
+                mUpstream = d;
+                ds->onSubscribe(this->shared_from_this());
+            }
         }
     }
 
