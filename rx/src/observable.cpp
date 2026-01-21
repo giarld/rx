@@ -33,6 +33,7 @@
 #include "rx/operators/observable_take.h"
 #include "rx/operators/observable_take_last.h"
 #include "rx/operators/observable_timer.h"
+#include "rx/operators/observable_zip.h"
 #include "rx/schedulers/main_thread_scheduler.h"
 
 
@@ -148,6 +149,21 @@ std::shared_ptr<Observable> Observable::mergeArray(const std::vector<std::shared
     const auto sourcesObservable = Observable::fromArray(sourceAnys);
     return sourcesObservable->flatMap([](const GAny &value) -> std::shared_ptr<Observable> {
         return value.castAs<std::shared_ptr<Observable> >();
+    });
+}
+
+std::shared_ptr<Observable> Observable::zipArray(const std::vector<std::shared_ptr<Observable> > &sources,
+                                                 const CombineLatestFunction &zipper)
+{
+    return std::make_shared<ObservableZip>(sources, zipper);
+}
+
+std::shared_ptr<Observable> Observable::zip(const std::shared_ptr<Observable> &source1,
+                                            const std::shared_ptr<Observable> &source2,
+                                            const BiFunction &zipper)
+{
+    return zipArray({source1, source2}, [zipper](const std::vector<GAny> &values) {
+        return zipper(values[0], values[1]);
     });
 }
 

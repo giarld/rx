@@ -442,6 +442,22 @@ Observable::combineLatest(timer1, timer2,
 // 每当任一定时器触发时，发射两个定时器的最新值组合
 ```
 
+#### zip
+
+组合多个 Observable 的数据项，按照顺序一对一组合。只有当所有 Observable 都发射了第 N 个数据项时，才会组合并发射第 N 个结果。
+
+```cpp
+// 组合两个 Observable
+auto obs1 = Observable::just(1, 2, 3);
+auto obs2 = Observable::just("A", "B");
+
+Observable::zip(obs1, obs2, [](const GAny &v1, const GAny &v2) {
+    return v1.toString() + v2.toString();
+});
+// 输出: 1A, 2B
+// 注意：因为 obs2 只有两个元素，导致 zip 提前结束，3 被忽略
+```
+
 #### merge
 
 将多个 Observable 合并为一个。
@@ -786,6 +802,7 @@ rx/
 | `error(Exception)` | 创建立即发送错误的 Observable |
 | `defer(ObservableSource)` | 延迟创建 Observable |
 | `merge(sources...)` | 合并多个 Observable |
+| `zip(obs1, obs2, zipper)` | 按顺序一对一合并多个 Observable |
 
 ### Observable 实例方法
 

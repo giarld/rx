@@ -74,6 +74,13 @@ public:
         return mergeArray({std::forward<Args>(sources)...});
     }
 
+    static std::shared_ptr<Observable> zipArray(const std::vector<std::shared_ptr<Observable> > &sources,
+                                                const CombineLatestFunction &zipper);
+
+    static std::shared_ptr<Observable> zip(const std::shared_ptr<Observable> &source1,
+                                           const std::shared_ptr<Observable> &source2,
+                                           const BiFunction &zipper);
+
 
     std::shared_ptr<Observable> map(const MapFunction &function);
 
