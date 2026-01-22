@@ -4,6 +4,9 @@
 
 #include "rx/observable.h"
 
+#include "rx/observers/blocking_first_observer.h"
+#include "rx/observers/blocking_for_each_observer.h"
+#include "rx/observers/blocking_last_observer.h"
 #include "rx/operators/observable_buffer.h"
 #include "rx/operators/observable_combine_latest.h"
 #include "rx/operators/observable_create.h"
@@ -318,6 +321,42 @@ std::shared_ptr<Observable> Observable::subscribeOn(SchedulerPtr scheduler)
 std::shared_ptr<Observable> Observable::observeOn(SchedulerPtr scheduler)
 {
     return std::make_shared<ObservableObserveOn>(this->shared_from_this(), scheduler);
+}
+
+
+GAny Observable::blockingFirst()
+{
+    const auto observer = std::make_shared<BlockingFirstObserver>();
+    this->subscribe(observer);
+    return observer->blockingGet();
+}
+
+GAny Observable::blockingFirst(const GAny &defaultValue)
+{
+    const auto observer = std::make_shared<BlockingFirstObserver>();
+    this->subscribe(observer);
+    return observer->blockingGet(defaultValue);
+}
+
+GAny Observable::blockingLast()
+{
+    const auto observer = std::make_shared<BlockingLastObserver>();
+    this->subscribe(observer);
+    return observer->blockingGet(GAny(), false);
+}
+
+GAny Observable::blockingLast(const GAny &defaultValue)
+{
+    const auto observer = std::make_shared<BlockingLastObserver>();
+    this->subscribe(observer);
+    return observer->blockingGet(defaultValue, true);
+}
+
+void Observable::blockingForEach(const OnNextAction &onNext)
+{
+    const auto observer = std::make_shared<BlockingForEachObserver>(onNext);
+    subscribe(observer);
+    observer->blockingWait();
 }
 
 

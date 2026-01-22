@@ -7,6 +7,7 @@
 
 #include "../disposable.h"
 #include "gx/gmutex.h"
+#include "gx/debug.h"
 
 
 namespace rx

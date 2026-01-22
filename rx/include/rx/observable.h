@@ -143,6 +143,17 @@ public:
 
     std::shared_ptr<Observable> observeOn(SchedulerPtr scheduler);
 
+
+    GAny blockingFirst();
+
+    GAny blockingFirst(const GAny &defaultValue);
+
+    GAny blockingLast();
+
+    GAny blockingLast(const GAny &defaultValue);
+
+    void blockingForEach(const OnNextAction& onNext);
+
 public:
     void subscribe(const ObserverPtr &observer) override;
 
