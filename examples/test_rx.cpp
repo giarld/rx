@@ -337,6 +337,21 @@ void testFilteringOperators()
         ->distinctUntilChanged([](const GAny &v) { return v.toString().substr(0, 1); })
         ->subscribe([](const GAny &v) { printLog("distinctUntilChanged(keySelector): {}", v.toString()); });
 
+    // Test: takeUntil
+    printLog("\n--- Test: takeUntil ---");
+    auto schedulerTakeUntil = GTimerScheduler::create("TakeUntilScheduler");
+    schedulerTakeUntil->start();
+    GTimerScheduler::makeGlobal(schedulerTakeUntil);
+
+    Observable::interval(50, 50)
+        ->takeUntil(Observable::timer(220)) // Should take 0, 1, 2, 3 (50, 100, 150, 200) - timer at 220
+        ->subscribe([](const GAny &v) { printLog("takeUntil: {}", v.toString()); },
+                    [](const GAnyException &e) { printLog("Error: {}", e.toString()); },
+                    []() { printLog("takeUntil: Completed"); });
+
+    schedulerTakeUntil->post([schedulerTakeUntil] { schedulerTakeUntil->stop(); }, 400);
+    schedulerTakeUntil->run();
+
     printLog("\n✓ Filtering Operators Tests Completed\n");
 }
 

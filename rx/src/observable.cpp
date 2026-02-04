@@ -41,6 +41,7 @@
 #include "rx/operators/observable_switch_map.h"
 #include "rx/operators/observable_take.h"
 #include "rx/operators/observable_take_last.h"
+#include "rx/operators/observable_take_until.h"
 #include "rx/operators/observable_timeout.h"
 #include "rx/operators/observable_timer.h"
 #include "rx/operators/observable_zip.h"
@@ -384,6 +385,11 @@ std::shared_ptr<Observable> Observable::take(uint64_t count)
 std::shared_ptr<Observable> Observable::takeLast(uint64_t count)
 {
     return std::make_shared<ObservableTakeLast>(this->shared_from_this(), count);
+}
+
+std::shared_ptr<Observable> Observable::takeUntil(const std::shared_ptr<Observable> &other)
+{
+    return std::make_shared<ObservableTakeUntil>(this->shared_from_this(), other);
 }
 
 std::shared_ptr<Observable> Observable::timeout(uint64_t timeout, SchedulerPtr scheduler, const std::shared_ptr<Observable> &fallback)

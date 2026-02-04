@@ -162,6 +162,8 @@ public:
 
     std::shared_ptr<Observable> takeLast(uint64_t count);
 
+    std::shared_ptr<Observable> takeUntil(const std::shared_ptr<Observable> &other);
+
     std::shared_ptr<Observable> timeout(uint64_t timeout, SchedulerPtr scheduler = nullptr, const std::shared_ptr<Observable> &fallback = nullptr);
 
     std::shared_ptr<Observable> timeout(uint64_t timeout, const std::shared_ptr<Observable> &fallback);
