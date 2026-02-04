@@ -313,6 +313,30 @@ void testFilteringOperators()
         ->takeLast(3)
         ->subscribe([](const GAny &v) { printLog("takeLast(3): {}", v.toString()); });
 
+    // Test: distinct
+    printLog("\n--- Test: distinct ---");
+    Observable::just(1, 2, 1, 3, 2, 4, 1, 5)
+        ->distinct()
+        ->subscribe([](const GAny &v) { printLog("distinct: {}", v.toString()); });
+
+    // Test: distinct with key selector
+    printLog("\n--- Test: distinct with keySelector ---");
+    Observable::just("Apple", "Banana", "Apricot", "Cherry", "Blueberry")
+        ->distinct([](const GAny &v) { return v.toString().substr(0, 1); })
+        ->subscribe([](const GAny &v) { printLog("distinct(keySelector): {}", v.toString()); });
+
+    // Test: distinctUntilChanged
+    printLog("\n--- Test: distinctUntilChanged ---");
+    Observable::just(1, 1, 2, 2, 2, 3, 2, 2, 1)
+        ->distinctUntilChanged()
+        ->subscribe([](const GAny &v) { printLog("distinctUntilChanged: {}", v.toString()); });
+
+    // Test: distinctUntilChanged with key selector
+    printLog("\n--- Test: distinctUntilChanged with keySelector ---");
+    Observable::just("Apple", "Apricot", "Banana", "Blueberry", "Cherry")
+        ->distinctUntilChanged([](const GAny &v) { return v.toString().substr(0, 1); })
+        ->subscribe([](const GAny &v) { printLog("distinctUntilChanged(keySelector): {}", v.toString()); });
+
     printLog("\n✓ Filtering Operators Tests Completed\n");
 }
 

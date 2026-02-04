@@ -22,6 +22,7 @@ using FilterFunction = std::function<bool(const GAny &v)>;
 using Callable = std::function<GAny()>;
 using BiFunction = std::function<GAny(const GAny &last, const GAny &item)>;
 using CombineLatestFunction = std::function<GAny(const std::vector<GAny> &values)>;
+using ComparatorFunction = std::function<bool(const GAny &a, const GAny &b)>;
 
 class GX_API Observable : public ObservableSource, public std::enable_shared_from_this<Observable>
 {
@@ -126,6 +127,18 @@ public:
 
 
     std::shared_ptr<Observable> filter(const FilterFunction &filter);
+
+    std::shared_ptr<Observable> distinct();
+
+    std::shared_ptr<Observable> distinct(const MapFunction &keySelector);
+
+    std::shared_ptr<Observable> distinctUntilChanged();
+
+    std::shared_ptr<Observable> distinctUntilChanged(const MapFunction &keySelector);
+
+    std::shared_ptr<Observable> distinctUntilChanged(const ComparatorFunction &comparator);
+
+    std::shared_ptr<Observable> distinctUntilChanged(const MapFunction &keySelector, const ComparatorFunction &comparator);
 
     std::shared_ptr<Observable> elementAt(uint64_t index);
 

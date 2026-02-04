@@ -48,6 +48,8 @@
 #include "rx/operators/observable_any.h"
 #include "rx/operators/observable_default_if_empty.h"
 #include "rx/operators/observable_sequence_equal.h"
+#include "rx/operators/observable_distinct.h"
+#include "rx/operators/observable_distinct_until_changed.h"
 #include "rx/schedulers/main_thread_scheduler.h"
 
 
@@ -290,6 +292,36 @@ std::shared_ptr<Observable> Observable::reduce(const BiFunction &accumulator)
 std::shared_ptr<Observable> Observable::filter(const FilterFunction &filter)
 {
     return std::make_shared<ObservableFilter>(this->shared_from_this(), filter);
+}
+
+std::shared_ptr<Observable> Observable::distinct()
+{
+    return std::make_shared<ObservableDistinct>(this->shared_from_this(), nullptr);
+}
+
+std::shared_ptr<Observable> Observable::distinct(const MapFunction &keySelector)
+{
+    return std::make_shared<ObservableDistinct>(this->shared_from_this(), keySelector);
+}
+
+std::shared_ptr<Observable> Observable::distinctUntilChanged()
+{
+    return std::make_shared<ObservableDistinctUntilChanged>(this->shared_from_this(), nullptr, nullptr);
+}
+
+std::shared_ptr<Observable> Observable::distinctUntilChanged(const MapFunction &keySelector)
+{
+    return std::make_shared<ObservableDistinctUntilChanged>(this->shared_from_this(), keySelector, nullptr);
+}
+
+std::shared_ptr<Observable> Observable::distinctUntilChanged(const ComparatorFunction &comparator)
+{
+    return std::make_shared<ObservableDistinctUntilChanged>(this->shared_from_this(), nullptr, comparator);
+}
+
+std::shared_ptr<Observable> Observable::distinctUntilChanged(const MapFunction &keySelector, const ComparatorFunction &comparator)
+{
+    return std::make_shared<ObservableDistinctUntilChanged>(this->shared_from_this(), keySelector, comparator);
 }
 
 std::shared_ptr<Observable> Observable::elementAt(uint64_t index)
