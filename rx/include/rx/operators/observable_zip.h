@@ -101,7 +101,20 @@ public:
             return;
 
         mCompletedCount++;
-        drain();
+        
+        // Check if all sources have completed
+        if (mCompletedCount == static_cast<int>(mRows.size())) {
+            // Drain any remaining buffered items first
+            drain();
+            // Then complete and cleanup
+            cancelAll();
+            if (mDownstream) {
+                mDownstream->onComplete();
+                mDownstream = nullptr;
+            }
+        } else {
+            drain();
+        }
     }
 
     void dispose() override
@@ -161,6 +174,8 @@ private:
         }
         mDisposables.clear();
         mRows.clear();
+        mObservers.clear();     // Clear observer references
+        mDownstream = nullptr;   // Release downstream reference
     }
 
 private:

@@ -74,6 +74,14 @@ public:
         return mergeArray({std::forward<Args>(sources)...});
     }
 
+    static std::shared_ptr<Observable> concatArray(const std::vector<std::shared_ptr<Observable> > &sources);
+
+    template<typename... Args>
+    static std::shared_ptr<Observable> concat(Args &&... sources)
+    {
+        return concatArray({std::forward<Args>(sources)...});
+    }
+
     static std::shared_ptr<Observable> zipArray(const std::vector<std::shared_ptr<Observable> > &sources,
                                                 const CombineLatestFunction &zipper);
 
@@ -86,13 +94,35 @@ public:
 
     std::shared_ptr<Observable> flatMap(const FlatMapFunction &function);
 
+    std::shared_ptr<Observable> concatMap(const FlatMapFunction &function);
+
+    std::shared_ptr<Observable> switchMap(const FlatMapFunction &function);
+
     std::shared_ptr<Observable> buffer(uint64_t count, uint64_t skip);
 
     std::shared_ptr<Observable> buffer(uint64_t count);
 
     std::shared_ptr<Observable> repeat(uint64_t times);
 
+    std::shared_ptr<Observable> retry(uint64_t times);
+
+    std::shared_ptr<Observable> retry();
+
+    std::shared_ptr<Observable> doOnEach(OnNextAction onNext, OnErrorAction onError = nullptr, OnCompleteAction onComplete = nullptr, OnSubscribeAction onSubscribe = nullptr, OnCompleteAction onFinally = nullptr);
+
+    std::shared_ptr<Observable> doOnNext(OnNextAction onNext);
+
+    std::shared_ptr<Observable> doOnError(OnErrorAction onError);
+
+    std::shared_ptr<Observable> doOnComplete(OnCompleteAction onComplete);
+
+    std::shared_ptr<Observable> doOnSubscribe(OnSubscribeAction onSubscribe);
+
+    std::shared_ptr<Observable> doFinally(OnCompleteAction onFinally);
+
     std::shared_ptr<Observable> scan(const BiFunction &accumulator);
+
+    std::shared_ptr<Observable> reduce(const BiFunction &accumulator);
 
 
     std::shared_ptr<Observable> filter(const FilterFunction &filter);
@@ -119,6 +149,10 @@ public:
 
     std::shared_ptr<Observable> takeLast(uint64_t count);
 
+    std::shared_ptr<Observable> timeout(uint64_t timeout, SchedulerPtr scheduler = nullptr, const std::shared_ptr<Observable> &fallback = nullptr);
+
+    std::shared_ptr<Observable> timeout(uint64_t timeout, const std::shared_ptr<Observable> &fallback);
+
     std::shared_ptr<Observable> delay(uint64_t delay, SchedulerPtr scheduler = nullptr);
 
     std::shared_ptr<Observable> debounce(uint64_t delay, SchedulerPtr scheduler = nullptr);
@@ -137,6 +171,21 @@ public:
     {
         return startWithArray({std::forward<Args>(items)...});
     }
+
+    std::shared_ptr<Observable> all(const FilterFunction &predicate);
+
+    std::shared_ptr<Observable> any(const FilterFunction &predicate);
+
+    std::shared_ptr<Observable> contains(const GAny &item);
+
+    std::shared_ptr<Observable> isEmpty();
+
+    std::shared_ptr<Observable> defaultIfEmpty(const GAny &defaultValue);
+
+    static std::shared_ptr<Observable> sequenceEqual(const std::shared_ptr<Observable> &source1,
+                                                     const std::shared_ptr<Observable> &source2,
+                                                     const BiFunction &comparator = nullptr,
+                                                     int bufferSize = 128);
 
 
     std::shared_ptr<Observable> subscribeOn(SchedulerPtr scheduler);

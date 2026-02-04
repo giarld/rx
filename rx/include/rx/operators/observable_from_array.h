@@ -22,6 +22,8 @@ public:
 
     ~FromArrayDisposable() override
     {
+        mDownstream = nullptr;  // Release reference
+        mArray.clear();         // Clear array
         LeakObserver::release<FromArrayDisposable>();
     }
 

@@ -9,6 +9,7 @@
 #include "rx/observers/blocking_last_observer.h"
 #include "rx/operators/observable_buffer.h"
 #include "rx/operators/observable_combine_latest.h"
+#include "rx/operators/observable_concat_map.h"
 #include "rx/operators/observable_create.h"
 #include "rx/operators/observable_debounce.h"
 #include "rx/operators/observable_defer.h"
@@ -29,15 +30,24 @@
 #include "rx/operators/observable_observe_on.h"
 #include "rx/operators/observable_range.h"
 #include "rx/operators/observable_repeat.h"
+#include "rx/operators/observable_do_on_each.h"
+#include "rx/operators/observable_retry.h"
 #include "rx/operators/observable_scan.h"
+#include "rx/operators/observable_reduce.h"
 #include "rx/operators/observable_skip.h"
 #include "rx/operators/observable_skip_last.h"
 #include "rx/operators/observable_start_with.h"
 #include "rx/operators/observable_subscribe_on.h"
+#include "rx/operators/observable_switch_map.h"
 #include "rx/operators/observable_take.h"
 #include "rx/operators/observable_take_last.h"
+#include "rx/operators/observable_timeout.h"
 #include "rx/operators/observable_timer.h"
 #include "rx/operators/observable_zip.h"
+#include "rx/operators/observable_all.h"
+#include "rx/operators/observable_any.h"
+#include "rx/operators/observable_default_if_empty.h"
+#include "rx/operators/observable_sequence_equal.h"
 #include "rx/schedulers/main_thread_scheduler.h"
 
 
@@ -144,15 +154,31 @@ std::shared_ptr<Observable> Observable::merge(const std::shared_ptr<Observable> 
 
 std::shared_ptr<Observable> Observable::mergeArray(const std::vector<std::shared_ptr<Observable> > &sources)
 {
-    std::vector<GAny> sourceAnys;
-    sourceAnys.reserve(sources.size());
-    for (const auto &s: sources) {
-        sourceAnys.push_back(s);
+    if (sources.empty()) {
+        return empty();
     }
+    std::vector<GAny> items;
+    items.reserve(sources.size());
+    for (const auto &s : sources) {
+        items.emplace_back(s);
+    }
+    return fromArray(items)->flatMap([](const GAny &v) {
+        return v.castAs<std::shared_ptr<Observable> >();
+    });
+}
 
-    const auto sourcesObservable = Observable::fromArray(sourceAnys);
-    return sourcesObservable->flatMap([](const GAny &value) -> std::shared_ptr<Observable> {
-        return value.castAs<std::shared_ptr<Observable> >();
+std::shared_ptr<Observable> Observable::concatArray(const std::vector<std::shared_ptr<Observable> > &sources)
+{
+    if (sources.empty()) {
+        return empty();
+    }
+    std::vector<GAny> items;
+    items.reserve(sources.size());
+    for (const auto &s : sources) {
+        items.emplace_back(s);
+    }
+    return fromArray(items)->concatMap([](const GAny &v) {
+        return v.castAs<std::shared_ptr<Observable> >();
     });
 }
 
@@ -182,6 +208,16 @@ std::shared_ptr<Observable> Observable::flatMap(const FlatMapFunction &function)
     return std::make_shared<ObservableFlatMap>(this->shared_from_this(), function);
 }
 
+std::shared_ptr<Observable> Observable::concatMap(const FlatMapFunction &function)
+{
+    return std::make_shared<ObservableConcatMap>(this->shared_from_this(), function);
+}
+
+std::shared_ptr<Observable> Observable::switchMap(const FlatMapFunction &function)
+{
+    return std::make_shared<ObservableSwitchMap>(this->shared_from_this(), function);
+}
+
 std::shared_ptr<Observable> Observable::buffer(uint64_t count, uint64_t skip)
 {
     return std::make_shared<ObservableBuffer>(this->shared_from_this(), count, skip);
@@ -200,9 +236,54 @@ std::shared_ptr<Observable> Observable::repeat(uint64_t times)
     return std::make_shared<ObservableRepeat>(this->shared_from_this(), times);
 }
 
+std::shared_ptr<Observable> Observable::retry(uint64_t times)
+{
+    return std::make_shared<ObservableRetry>(this->shared_from_this(), times);
+}
+
+std::shared_ptr<Observable> Observable::retry()
+{
+    return std::make_shared<ObservableRetry>(this->shared_from_this(), std::numeric_limits<uint64_t>::max());
+}
+
+std::shared_ptr<Observable> Observable::doOnEach(OnNextAction onNext, OnErrorAction onError, OnCompleteAction onComplete, OnSubscribeAction onSubscribe, OnCompleteAction onFinally)
+{
+    return std::make_shared<ObservableDoOnEach>(this->shared_from_this(), std::move(onNext), std::move(onError), std::move(onComplete), std::move(onSubscribe), std::move(onFinally));
+}
+
+std::shared_ptr<Observable> Observable::doOnNext(OnNextAction onNext)
+{
+    return doOnEach(std::move(onNext));
+}
+
+std::shared_ptr<Observable> Observable::doOnError(OnErrorAction onError)
+{
+    return doOnEach(nullptr, std::move(onError));
+}
+
+std::shared_ptr<Observable> Observable::doOnComplete(OnCompleteAction onComplete)
+{
+    return doOnEach(nullptr, nullptr, std::move(onComplete));
+}
+
+std::shared_ptr<Observable> Observable::doOnSubscribe(OnSubscribeAction onSubscribe)
+{
+    return doOnEach(nullptr, nullptr, nullptr, std::move(onSubscribe));
+}
+
+std::shared_ptr<Observable> Observable::doFinally(OnCompleteAction onFinally)
+{
+    return doOnEach(nullptr, nullptr, nullptr, nullptr, std::move(onFinally));
+}
+
 std::shared_ptr<Observable> Observable::scan(const BiFunction &accumulator)
 {
     return std::make_shared<ObservableScan>(this->shared_from_this(), accumulator);
+}
+
+std::shared_ptr<Observable> Observable::reduce(const BiFunction &accumulator)
+{
+    return std::make_shared<ObservableReduce>(this->shared_from_this(), accumulator);
 }
 
 
@@ -270,6 +351,19 @@ std::shared_ptr<Observable> Observable::take(uint64_t count)
 std::shared_ptr<Observable> Observable::takeLast(uint64_t count)
 {
     return std::make_shared<ObservableTakeLast>(this->shared_from_this(), count);
+}
+
+std::shared_ptr<Observable> Observable::timeout(uint64_t timeout, SchedulerPtr scheduler, const std::shared_ptr<Observable> &fallback)
+{
+    if (!scheduler) {
+        scheduler = MainThreadScheduler::create();
+    }
+    return std::make_shared<ObservableTimeout>(this->shared_from_this(), timeout, scheduler, fallback);
+}
+
+std::shared_ptr<Observable> Observable::timeout(uint64_t timeout, const std::shared_ptr<Observable> &fallback)
+{
+    return this->timeout(timeout, nullptr, fallback);
 }
 
 std::shared_ptr<Observable> Observable::delay(uint64_t delay, SchedulerPtr scheduler)
@@ -377,4 +471,48 @@ std::shared_ptr<Observable> Observable::justOne(const GAny &value)
 {
     return std::make_shared<ObservableJust>(value);
 }
+
+std::shared_ptr<Observable> Observable::all(const FilterFunction &predicate)
+{
+    return std::make_shared<ObservableAll>(shared_from_this(), predicate);
+}
+
+std::shared_ptr<Observable> Observable::any(const FilterFunction &predicate)
+{
+    return std::make_shared<ObservableAny>(shared_from_this(), predicate);
+}
+
+std::shared_ptr<Observable> Observable::contains(const GAny &item)
+{
+    return any([item](const GAny &v) {
+        return v == item;
+    });
+}
+
+std::shared_ptr<Observable> Observable::isEmpty()
+{
+    return all([](const GAny &) {
+        return false;
+    });
+}
+
+std::shared_ptr<Observable> Observable::defaultIfEmpty(const GAny &defaultValue)
+{
+    return std::make_shared<ObservableDefaultIfEmpty>(shared_from_this(), defaultValue);
+}
+
+std::shared_ptr<Observable> Observable::sequenceEqual(const std::shared_ptr<Observable> &source1,
+                                                      const std::shared_ptr<Observable> &source2,
+                                                      const BiFunction &comparator,
+                                                      int bufferSize)
+{
+    BiFunction comp = comparator;
+    if (!comp) {
+        comp = [](const GAny &a, const GAny &b) {
+            return a == b;
+        };
+    }
+    return std::make_shared<ObservableSequenceEqual>(source1, source2, comp, bufferSize);
+}
+
 } // rx

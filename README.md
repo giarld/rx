@@ -212,7 +212,8 @@ mainScheduler->run();
 - `never()` - 创建永不发射也不完成的 Observable
 - `error(Exception)` - 创建立即发送错误的 Observable
 - `defer(ObservableSource)` - 延迟创建 Observable
-- `merge(sources...)` - 合并多个 Observable
+- `merge(sources...)` - 合并多个 Observable（并发）
+- `concat(sources...)` - 顺序连接多个 Observable
 
 详见 [Observable 静态方法](#observable-静态方法) 部分的代码示例。
 
@@ -240,6 +241,30 @@ Observable::just(1, 2, 3)
         return Observable::range(0, v.toInt32());
     });
 // 输出: 0, 0, 1, 0, 1, 2
+```
+
+#### concatMap
+
+将每个数据项转换为 Observable，并按顺序连接它们（等待前一个完成才订阅下一个）。
+
+```cpp
+Observable::just(1, 2, 3)
+    ->concatMap([](const GAny &v) {
+        return Observable::just(v)->delay(100);
+    });
+// 输出: 1, 2, 3 (顺序执行，确保次序)
+```
+
+#### switchMap
+
+当源 Observable 发射新数据时，取消订阅前一个内部 Observable 并订阅新的。
+
+```cpp
+Observable::create(...)
+    ->switchMap([](const GAny &v) {
+        // 如果新数据到来，上一个网络请求会被取消
+        return Observable::fromCallable(searchNetwork(v));
+    });
 ```
 
 ### 过滤操作符
@@ -460,7 +485,7 @@ Observable::zip(obs1, obs2, [](const GAny &v1, const GAny &v2) {
 
 #### merge
 
-将多个 Observable 合并为一个。
+将多个 Observable 合并为一个，并发执行。
 
 ```cpp
 auto obs1 = Observable::just(1, 2);
@@ -471,6 +496,24 @@ Observable::merge(obs1, obs2)
         std::cout << v.toString() << " ";
     });
 // 输出: 1 2 3 4
+```
+
+#### concat
+
+将多个 Observable 顺序连接，等待前一个完成后才订阅下一个。
+
+```cpp
+auto obs1 = Observable::just(1, 2);
+auto obs2 = Observable::just(3, 4);
+auto obs3 = Observable::just(5, 6);
+
+Observable::concat(obs1, obs2, obs3)
+    ->subscribe([](const GAny &v) {
+        std::cout << v.toString() << " ";
+    });
+// 输出: 1 2 3 4 5 6 (严格按顺序)
+
+// 与 merge 的区别：concat 保证顺序，merge 可能并发
 ```
 
 #### buffer
@@ -601,6 +644,30 @@ Observable::create([](const ObservableEmitterPtr &emitter) {
 // 输出: Searching for: react
 ```
 
+#### timeout
+
+如果在指定的时间段内没有任何数据项发射，则以错误（Timeout）终止 Observable，或切换到备用的 Observable。
+
+```cpp
+// 1. 超时后报错
+Observable::never()
+    ->timeout(1000)  // 1000ms 后超时
+    ->subscribe(
+        [](const GAny &v) { ... },
+        [](const GAnyException &e) {
+            std::cout << "Timeout: " << e.toString() << std::endl;
+        }
+    );
+
+// 2. 超时后切换到备用 Observable
+Observable::never()
+    ->timeout(1000, Observable::just("Fallback"))
+    ->subscribe([](const GAny &v) {
+        std::cout << "Value: " << v.toString() << std::endl;
+    });
+// 输出: Value: Fallback
+```
+
 ### 辅助操作符
 
 #### repeat
@@ -611,6 +678,139 @@ Observable::create([](const ObservableEmitterPtr &emitter) {
 Observable::just(1, 2, 3)
     ->repeat(2);
 // 输出: 1, 2, 3, 1, 2, 3
+```
+
+#### reduce
+
+对数据流应用累加器函数，最终只发射一个结果（空序列则报错）。
+
+```cpp
+Observable::just(1, 2, 3, 4)
+    ->reduce([](const GAny &acc, const GAny &v) {
+        return acc.toInt32() + v.toInt32();
+    });
+// 输出: 10
+```
+
+#### retry
+
+当发生错误时重新订阅数据流。
+
+```cpp
+// 1. 无限重试
+Observable::create(...)
+    ->retry();
+
+// 2. 指定重试次数
+Observable::create(...)
+    ->retry(3); // 最多重试 3 次
+```
+
+#### doOnNext / doOnError / doOnComplete
+
+在 Observable 的生命周期事件发生时注册回调，不改变数据流。
+
+```cpp
+Observable::just(1, 2, 3)
+    ->doOnNext([](const GAny &v) {
+        std::cout << "Emitting: " << v.toString() << std::endl;
+    })
+    ->doOnError([](const GAnyException &e) {
+        std::cerr << "Error occurred: " << e.toString() << std::endl;
+    })
+    ->doOnComplete([]() {
+        std::cout << "Stream completed" << std::endl;
+    });
+```
+
+#### doOnSubscribe / doFinally
+
+```cpp
+Observable::create(...)
+    ->doOnSubscribe([](const DisposablePtr &d) {
+        std::cout << "Subscribed!" << std::endl;
+    })
+    ->doFinally([]() {
+        std::cout << "Terminated (either completed, error, or disposed)" << std::endl;
+    });
+```
+
+#### doOnEach
+
+一次性注册 onNext / onError / onComplete / onSubscribe / finally 的回调。
+
+```cpp
+Observable::just(1, 2, 3)
+    ->doOnEach(
+        [](const GAny &v) { std::cout << "Next: " << v.toString() << std::endl; },
+        [](const GAnyException &e) { std::cout << "Error: " << e.toString() << std::endl; },
+        []() { std::cout << "Complete" << std::endl; },
+        [](const DisposablePtr &) { std::cout << "Subscribe" << std::endl; },
+        []() { std::cout << "Finally" << std::endl; }
+    );
+```
+
+### 布尔操作符
+
+#### all
+
+判断是否所有数据项都满足条件。
+
+```cpp
+Observable::just(2, 4, 6)
+    ->all([](const GAny &v) { return v.toInt32() % 2 == 0; });
+// 输出: true
+```
+
+#### any
+
+判断是否存在满足条件的数据项。
+
+```cpp
+Observable::just(1, 3, 4)
+    ->any([](const GAny &v) { return v.toInt32() % 2 == 0; });
+// 输出: true
+```
+
+#### contains
+
+判断序列是否包含指定元素。
+
+```cpp
+Observable::just(1, 2, 3)
+    ->contains(2);
+// 输出: true
+```
+
+#### isEmpty
+
+判断序列是否为空。
+
+```cpp
+Observable::empty()
+    ->isEmpty();
+// 输出: true
+```
+
+#### defaultIfEmpty
+
+当序列为空时发射默认值。
+
+```cpp
+Observable::empty()
+    ->defaultIfEmpty(999);
+// 输出: 999
+```
+
+#### sequenceEqual
+
+判断两个序列是否逐项相等。
+
+```cpp
+auto s1 = Observable::just(1, 2, 3);
+auto s2 = Observable::just(1, 2, 3);
+Observable::sequenceEqual(s1, s2);
+// 输出: true
 ```
 
 #### subscribeOn
@@ -849,8 +1049,10 @@ rx/
 | `never()` | 创建永不发射也不完成的 Observable |
 | `error(Exception)` | 创建立即发送错误的 Observable |
 | `defer(ObservableSource)` | 延迟创建 Observable |
-| `merge(sources...)` | 合并多个 Observable |
+| `merge(sources...)` | 合并多个 Observable（并发） |
+| `concat(sources...)` | 顺序连接多个 Observable |
 | `zip(obs1, obs2, zipper)` | 按顺序一对一合并多个 Observable |
+| `sequenceEqual(obs1, obs2[, comparator])` | 判断两个序列是否逐项相等 |
 
 ### Observable 实例方法
 
@@ -858,6 +1060,8 @@ rx/
 |------|------|
 | `map(function)` | 转换每个数据项 |
 | `flatMap(function)` | 将数据项转换为 Observable 并合并 |
+| `concatMap(function)` | 将数据项转换为 Observable 并按顺序连接 |
+| `switchMap(function)` | 将数据项转换为 Observable，发射新数据时取消上一个 |
 | `filter(predicate)` | 过滤数据项 |
 | `elementAt(index[, defaultValue])` | 发射第 N 个数据项（从 0 开始） |
 | `first([defaultValue])` | 发射第一个数据项 |
@@ -873,8 +1077,22 @@ rx/
 | `buffer(count[, skip])` | 缓存数据项为数组 |
 | `delay(time[, scheduler])` | 延迟发射数据项 |
 | `debounce(time[, scheduler])` | 防抖动，只在时间窗口内无新数据时发射最新值 |
+| `timeout(time[, scheduler, fallback])` | 超时后报错或切换到备用 Observable |
 | `scan(accumulator)` | 对数据流应用累加器函数并发射每次结果 |
+| `reduce(accumulator)` | 对数据流应用累加器函数并发射最终结果 |
 | `repeat(times)` | 重复数据流 |
+| `retry([times])` | 遇到错误时重试（默认无限次） |
+| `all(predicate)` | 判断是否所有数据项都满足条件 |
+| `any(predicate)` | 判断是否存在满足条件的数据项 |
+| `contains(item)` | 判断序列是否包含指定元素 |
+| `isEmpty()` | 判断序列是否为空 |
+| `defaultIfEmpty(value)` | 序列为空时发射默认值 |
+| `doOnNext(action)` | 注册 onNext 回调 |
+| `doOnError(action)` | 注册 onError 回调 |
+| `doOnComplete(action)` | 注册 onComplete 回调 |
+| `doOnSubscribe(action)` | 注册 onSubscribe 回调 |
+| `doFinally(action)` | 注册终止或取消时的回调 |
+| `doOnEach(...)` | 注册 onNext/onError/onComplete/onSubscribe/finally 回调 |
 | `subscribeOn(scheduler)` | 指定订阅的调度器 |
 | `observeOn(scheduler)` | 指定观察的调度器 |
 | `subscribe(onNext[, onError, onComplete])` | 订阅 Observable |
