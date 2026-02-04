@@ -617,6 +617,31 @@ void testUtilityOperators()
     scheduler2->post([scheduler2] { scheduler2->stop(); }, 600);
     scheduler2->run();
 
+    // Test: sample
+    printLog("\n--- Test: sample ---");
+    auto scheduler3 = GTimerScheduler::create("SampleScheduler");
+    scheduler3->start();
+    GTimerScheduler::makeGlobal(scheduler3);
+    auto sched3 = MainThreadScheduler::create();
+
+    Observable::create([sched3](const ObservableEmitterPtr &emitter) {
+            emitter->onNext("A");
+            sched3->scheduleDirect([emitter] { emitter->onNext("AB"); }, 50);
+            sched3->scheduleDirect([emitter] { emitter->onNext("ABC"); }, 120);
+            sched3->scheduleDirect([emitter] { emitter->onNext("ABCD"); }, 240);
+            sched3->scheduleDirect([emitter] {
+                emitter->onNext("ABCDE");
+                emitter->onComplete();
+            }, 360);
+        })
+        ->sample(150, sched3)
+        ->subscribe([](const GAny &v) { printLog("sample: {}", v.toString()); },
+                    [](const GAnyException &e) { printLog("Error: {}", e.toString()); },
+                    []() { printLog("sample: Completed"); });
+
+    scheduler3->post([scheduler3] { scheduler3->stop(); }, 800);
+    scheduler3->run();
+
     printLog("\n✓ Utility Operators Tests Completed\n");
 }
 

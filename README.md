@@ -85,7 +85,7 @@ mainScheduler->run();
 - 过滤：`filter` `distinct` `distinctUntilChanged` `elementAt` `first` `last` `ignoreElements` `skip` `skipLast` `take` `takeLast`
 - 组合：`combineLatest` `startWith` `buffer`
 - 聚合：`scan` `reduce`
-- 时间：`delay` `debounce` `timeout`
+- 时间：`delay` `debounce` `sample` `timeout`
 - 辅助：`repeat` `retry` `doOnNext` `doOnError` `doOnComplete` `doOnSubscribe` `doFinally` `doOnEach`
 - 布尔：`all` `any` `contains` `isEmpty` `defaultIfEmpty` `sequenceEqual`
 - 调度：`subscribeOn` `observeOn`

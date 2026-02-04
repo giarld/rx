@@ -50,6 +50,7 @@
 #include "rx/operators/observable_sequence_equal.h"
 #include "rx/operators/observable_distinct.h"
 #include "rx/operators/observable_distinct_until_changed.h"
+#include "rx/operators/observable_sample.h"
 #include "rx/schedulers/main_thread_scheduler.h"
 
 
@@ -412,6 +413,14 @@ std::shared_ptr<Observable> Observable::debounce(uint64_t delay, SchedulerPtr sc
         scheduler = MainThreadScheduler::create();
     }
     return std::make_shared<ObservableDebounce>(this->shared_from_this(), delay, scheduler);
+}
+
+std::shared_ptr<Observable> Observable::sample(uint64_t period, SchedulerPtr scheduler)
+{
+    if (!scheduler) {
+        scheduler = MainThreadScheduler::create();
+    }
+    return std::make_shared<ObservableSample>(this->shared_from_this(), period, scheduler);
 }
 
 std::shared_ptr<Observable> Observable::join(const std::shared_ptr<Observable> &other,

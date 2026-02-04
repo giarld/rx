@@ -170,6 +170,8 @@ public:
 
     std::shared_ptr<Observable> debounce(uint64_t delay, SchedulerPtr scheduler = nullptr);
 
+    std::shared_ptr<Observable> sample(uint64_t period, SchedulerPtr scheduler = nullptr);
+
     std::shared_ptr<Observable> join(const std::shared_ptr<Observable> &other,
                                      const FlatMapFunction &leftDurationSelector,
                                      const FlatMapFunction &rightDurationSelector,
