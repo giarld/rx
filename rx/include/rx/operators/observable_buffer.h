@@ -39,12 +39,13 @@ public:
 
     void onNext(const GAny &value) override
     {
-        if (const auto d = mDownstream) {
-            mBuffer.push_back(value);
-            if (mBuffer.size() >= mCount) {
+        mBuffer.push_back(value);
+
+        if (mBuffer.size() >= mCount) {
+            if (const auto d = mDownstream) {
                 d->onNext(mBuffer);
-                mBuffer.clear();
             }
+            mBuffer.clear();
         }
     }
 
