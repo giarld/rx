@@ -44,6 +44,7 @@
 #include "rx/operators/observable_take_until.h"
 #include "rx/operators/observable_timeout.h"
 #include "rx/operators/observable_timer.h"
+#include "rx/operators/observable_to_array.h"
 #include "rx/operators/observable_zip.h"
 #include "rx/operators/observable_all.h"
 #include "rx/operators/observable_any.h"
@@ -230,6 +231,11 @@ std::shared_ptr<Observable> Observable::buffer(uint64_t count, uint64_t skip)
 std::shared_ptr<Observable> Observable::buffer(uint64_t count)
 {
     return buffer(count, count);
+}
+
+std::shared_ptr<Observable> Observable::toArray()
+{
+    return std::make_shared<ObservableToArray>(this->shared_from_this());
 }
 
 std::shared_ptr<Observable> Observable::repeat(uint64_t times)

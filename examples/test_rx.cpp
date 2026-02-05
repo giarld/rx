@@ -230,6 +230,19 @@ void testTransformationOperators()
     scheduler2->post([scheduler2] { scheduler2->stop(); }, 200);
     scheduler2->run();
 
+    // Test: toArray
+    printLog("\n--- Test: toArray ---");
+    Observable::range(1, 5)
+        ->toArray()
+        ->subscribe([](const GAny &v) {
+            // v is a std::vector<GAny>
+            if (v.is<std::vector<GAny>>()) {
+                printLog("toArray: {}", v.toString());
+            } else {
+                printLog("toArray: Unexpected type");
+            }
+        });
+
     printLog("\n✓ Transformation Operators Tests Completed\n");
 }
 

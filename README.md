@@ -81,7 +81,7 @@ mainScheduler->run();
 ## 操作符速览
 
 - 创建：`create` `just` `fromArray` `range` `interval` `timer` `empty` `never` `error` `defer` `merge` `concat` `zip`
-- 转换：`map` `flatMap` `concatMap` `switchMap`
+- 转换：`map` `flatMap` `concatMap` `switchMap` `toArray`
 - 过滤：`filter` `distinct` `distinctUntilChanged` `elementAt` `first` `last` `ignoreElements` `skip` `skipLast` `take` `takeLast` `takeUntil`
 - 组合：`combineLatest` `startWith` `buffer`
 - 聚合：`scan` `reduce`

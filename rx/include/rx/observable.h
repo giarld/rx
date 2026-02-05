@@ -103,6 +103,8 @@ public:
 
     std::shared_ptr<Observable> buffer(uint64_t count);
 
+    std::shared_ptr<Observable> toArray();
+
     std::shared_ptr<Observable> repeat(uint64_t times);
 
     std::shared_ptr<Observable> retry(uint64_t times);
