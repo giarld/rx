@@ -33,6 +33,7 @@ public:
         LeakObserver::release<TimeoutObserver>();
     }
 
+public:
     void onSubscribe(const DisposablePtr &d) override
     {
         if (mInFallback.load(std::memory_order_acquire)) {

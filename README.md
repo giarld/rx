@@ -81,12 +81,13 @@ mainScheduler->run();
 ## 操作符速览
 
 - 创建：`create` `just` `fromArray` `range` `interval` `timer` `empty` `never` `error` `defer` `merge` `concat` `zip`
-- 转换：`map` `flatMap` `concatMap` `switchMap` `toArray`
-- 过滤：`filter` `distinct` `distinctUntilChanged` `elementAt` `first` `last` `ignoreElements` `skip` `skipLast` `take` `takeLast` `takeUntil`
-- 组合：`combineLatest` `startWith` `buffer`
+- 转换：`map` `flatMap` `concatMap` `switchMap` `toArray` `groupBy` `window`
+- 过滤：`filter` `distinct` `distinctUntilChanged` `elementAt` `first` `last` `ignoreElements` `skip` `skipLast` `skipWhile` `take` `takeLast` `takeUntil` `takeWhile`
+- 组合：`combineLatest` `startWith` `buffer` `amb`
 - 聚合：`scan` `reduce`
 - 时间：`delay` `debounce` `sample` `timeout`
 - 辅助：`repeat` `retry` `doOnNext` `doOnError` `doOnComplete` `doOnSubscribe` `doFinally` `doOnEach`
+- 错误处理：`onErrorReturn` `onErrorResumeNext` `catchError`
 - 布尔：`all` `any` `contains` `isEmpty` `defaultIfEmpty` `sequenceEqual`
 - 调度：`subscribeOn` `observeOn`
 

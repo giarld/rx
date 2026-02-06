@@ -26,6 +26,7 @@ public:
         LeakObserver::release<StartWithObserver>();
     }
 
+public:
     void run(const ObservableSourcePtr &source)
     {
         if (isDisposed()) {

@@ -26,6 +26,7 @@ public:
         LeakObserver::release<DefaultIfEmptyObserver>();
     }
 
+public:
     void onSubscribe(const DisposablePtr &d) override
     {
         mDownstream->onSubscribe(d);

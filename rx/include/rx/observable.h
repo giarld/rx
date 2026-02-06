@@ -23,6 +23,7 @@ using Callable = std::function<GAny()>;
 using BiFunction = std::function<GAny(const GAny &last, const GAny &item)>;
 using CombineLatestFunction = std::function<GAny(const std::vector<GAny> &values)>;
 using ComparatorFunction = std::function<bool(const GAny &a, const GAny &b)>;
+using ResumeFunction = std::function<std::shared_ptr<Observable>(const GAnyException &e)>;
 
 class GX_API Observable : public ObservableSource, public std::enable_shared_from_this<Observable>
 {
@@ -81,6 +82,14 @@ public:
     static std::shared_ptr<Observable> concat(Args &&... sources)
     {
         return concatArray({std::forward<Args>(sources)...});
+    }
+
+    static std::shared_ptr<Observable> ambArray(const std::vector<std::shared_ptr<Observable> > &sources);
+
+    template<typename... Args>
+    static std::shared_ptr<Observable> amb(Args &&... sources)
+    {
+        return ambArray({std::forward<Args>(sources)...});
     }
 
     static std::shared_ptr<Observable> zipArray(const std::vector<std::shared_ptr<Observable> > &sources,
@@ -166,6 +175,18 @@ public:
 
     std::shared_ptr<Observable> takeUntil(const std::shared_ptr<Observable> &other);
 
+    std::shared_ptr<Observable> takeWhile(const FilterFunction &predicate);
+
+    std::shared_ptr<Observable> skipWhile(const FilterFunction &predicate);
+
+    std::shared_ptr<Observable> groupBy(const MapFunction &keySelector);
+
+    std::shared_ptr<Observable> groupBy(const MapFunction &keySelector, const MapFunction &valueSelector);
+
+    std::shared_ptr<Observable> window(int32_t count);
+
+    std::shared_ptr<Observable> window(int32_t count, int32_t skip);
+
     std::shared_ptr<Observable> timeout(uint64_t timeout, SchedulerPtr scheduler = nullptr, const std::shared_ptr<Observable> &fallback = nullptr);
 
     std::shared_ptr<Observable> timeout(uint64_t timeout, const std::shared_ptr<Observable> &fallback);
@@ -200,6 +221,22 @@ public:
     std::shared_ptr<Observable> isEmpty();
 
     std::shared_ptr<Observable> defaultIfEmpty(const GAny &defaultValue);
+
+    std::shared_ptr<Observable> onErrorReturn(const GAny &defaultValue);
+
+    std::shared_ptr<Observable> onErrorResumeNext(const ResumeFunction &resumeFunction);
+
+    std::shared_ptr<Observable> onErrorResumeNext(const std::shared_ptr<Observable> &next);
+
+    std::shared_ptr<Observable> catchError(const ResumeFunction &resumeFunction)
+    {
+        return onErrorResumeNext(resumeFunction);
+    }
+
+    std::shared_ptr<Observable> catchError(const std::shared_ptr<Observable> &next)
+    {
+        return onErrorResumeNext(next);
+    }
 
     static std::shared_ptr<Observable> sequenceEqual(const std::shared_ptr<Observable> &source1,
                                                      const std::shared_ptr<Observable> &source2,

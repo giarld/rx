@@ -34,8 +34,6 @@ public:
             if (const auto o = mDownstream) {
                 o->onNext(0ULL);
                 o->onComplete();
-
-                mDownstream = nullptr;
             }
         }
     }

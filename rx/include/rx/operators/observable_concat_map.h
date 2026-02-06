@@ -26,6 +26,7 @@ public:
 
     ~ConcatMapInnerObserver() override;
 
+public:
     void onSubscribe(const DisposablePtr &d) override;
 
     void onNext(const GAny &value) override;
@@ -45,6 +46,7 @@ public:
 
     ~ConcatMapObserver() override;
 
+public:
     void onSubscribe(const DisposablePtr &d) override;
 
     void onNext(const GAny &value) override;

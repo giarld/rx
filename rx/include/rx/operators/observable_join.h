@@ -30,6 +30,7 @@ public:
         LeakObserver::release<JoinSupportObserver>();
     }
 
+public:
     void onSubscribe(const DisposablePtr &d) override
     {
         DisposableHelper::setOnce(mDisposable, d, mLock);
@@ -72,6 +73,7 @@ public:
         LeakObserver::release<JoinDurationObserver>();
     }
 
+public:
     void onSubscribe(const DisposablePtr &d) override
     {
         DisposableHelper::setOnce(mDisposable, d, mLock);
@@ -125,6 +127,7 @@ public:
         LeakObserver::release<JoinMainObserver>();
     }
 
+public:
     void subscribe(const ObservableSourcePtr &left, const ObservableSourcePtr &right)
     {
         const auto leftObs = std::make_shared<JoinSupportObserver>(shared_from_this(), true);

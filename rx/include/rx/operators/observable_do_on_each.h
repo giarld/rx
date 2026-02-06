@@ -35,6 +35,7 @@ public:
         LeakObserver::release<DoOnEachObserver>();
     }
 
+public:
     void onSubscribe(const DisposablePtr &d) override
     {
         if (mOnSubscribe) {

@@ -23,6 +23,7 @@ public:
         LeakObserver::release<BlockingFirstObserver>();
     }
 
+public:
     void onSubscribe(const DisposablePtr &d) override
     {
         mDisposable = d;

@@ -11,7 +11,12 @@
 #include "rx/operators/observable_combine_latest.h"
 #include "rx/operators/observable_concat_map.h"
 #include "rx/operators/observable_create.h"
+#include "rx/operators/observable_amb.h"
 #include "rx/operators/observable_debounce.h"
+#include "rx/operators/observable_skip_while.h"
+#include "rx/operators/observable_take_while.h"
+#include "rx/operators/observable_group_by.h"
+#include "rx/operators/observable_window.h"
 #include "rx/operators/observable_defer.h"
 #include "rx/operators/observable_delay.h"
 #include "rx/operators/observable_element_at.h"
@@ -49,6 +54,8 @@
 #include "rx/operators/observable_all.h"
 #include "rx/operators/observable_any.h"
 #include "rx/operators/observable_default_if_empty.h"
+#include "rx/operators/observable_on_error_return.h"
+#include "rx/operators/observable_on_error_resume_next.h"
 #include "rx/operators/observable_sequence_equal.h"
 #include "rx/operators/observable_distinct.h"
 #include "rx/operators/observable_distinct_until_changed.h"
@@ -185,6 +192,11 @@ std::shared_ptr<Observable> Observable::concatArray(const std::vector<std::share
     return fromArray(items)->concatMap([](const GAny &v) {
         return v.castAs<std::shared_ptr<Observable> >();
     });
+}
+
+std::shared_ptr<Observable> Observable::ambArray(const std::vector<std::shared_ptr<Observable> > &sources)
+{
+    return std::make_shared<ObservableAmb>(sources);
 }
 
 std::shared_ptr<Observable> Observable::zipArray(const std::vector<std::shared_ptr<Observable> > &sources,
@@ -395,7 +407,37 @@ std::shared_ptr<Observable> Observable::takeLast(uint64_t count)
 
 std::shared_ptr<Observable> Observable::takeUntil(const std::shared_ptr<Observable> &other)
 {
-    return std::make_shared<ObservableTakeUntil>(this->shared_from_this(), other);
+    return std::make_shared<ObservableTakeUntil>(shared_from_this(), other);
+}
+
+std::shared_ptr<Observable> Observable::takeWhile(const FilterFunction &predicate)
+{
+    return std::make_shared<ObservableTakeWhile>(shared_from_this(), predicate);
+}
+
+std::shared_ptr<Observable> Observable::skipWhile(const FilterFunction &predicate)
+{
+    return std::make_shared<ObservableSkipWhile>(shared_from_this(), predicate);
+}
+
+std::shared_ptr<Observable> Observable::groupBy(const MapFunction &keySelector)
+{
+    return std::make_shared<ObservableGroupBy>(shared_from_this(), keySelector);
+}
+
+std::shared_ptr<Observable> Observable::groupBy(const MapFunction &keySelector, const MapFunction &valueSelector)
+{
+    return std::make_shared<ObservableGroupBy>(shared_from_this(), keySelector, valueSelector);
+}
+
+std::shared_ptr<Observable> Observable::window(int32_t count)
+{
+    return window(count, count);
+}
+
+std::shared_ptr<Observable> Observable::window(int32_t count, int32_t skip)
+{
+    return std::make_shared<ObservableWindow>(shared_from_this(), count, skip);
 }
 
 std::shared_ptr<Observable> Observable::timeout(uint64_t timeout, SchedulerPtr scheduler, const std::shared_ptr<Observable> &fallback)
@@ -552,6 +594,23 @@ std::shared_ptr<Observable> Observable::isEmpty()
 std::shared_ptr<Observable> Observable::defaultIfEmpty(const GAny &defaultValue)
 {
     return std::make_shared<ObservableDefaultIfEmpty>(shared_from_this(), defaultValue);
+}
+
+std::shared_ptr<Observable> Observable::onErrorReturn(const GAny &defaultValue)
+{
+    return std::make_shared<ObservableOnErrorReturn>(shared_from_this(), defaultValue);
+}
+
+std::shared_ptr<Observable> Observable::onErrorResumeNext(const ResumeFunction &resumeFunction)
+{
+    return std::make_shared<ObservableOnErrorResumeNext>(shared_from_this(), resumeFunction);
+}
+
+std::shared_ptr<Observable> Observable::onErrorResumeNext(const std::shared_ptr<Observable> &next)
+{
+    return onErrorResumeNext([next](const GAnyException &) {
+        return next;
+    });
 }
 
 std::shared_ptr<Observable> Observable::sequenceEqual(const std::shared_ptr<Observable> &source1,

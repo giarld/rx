@@ -21,6 +21,7 @@ public:
 
     ~SequenceEqualInnerObserver() override;
 
+public:
     void onSubscribe(const DisposablePtr &d) override;
 
     void onNext(const GAny &value) override;
@@ -48,6 +49,7 @@ public:
         LeakObserver::release<SequenceEqualCoordinator>();
     }
 
+public:
     void subscribe(const std::shared_ptr<Observable> &source1, const std::shared_ptr<Observable> &source2)
     {
         const auto inner1 = std::make_shared<SequenceEqualInnerObserver>(shared_from_this(), 0);

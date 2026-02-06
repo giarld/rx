@@ -30,6 +30,7 @@ public:
         LeakObserver::release<InnerObserver>();
     }
 
+public:
     void onSubscribe(const DisposablePtr &d) override
     {
         DisposableHelper::setOnce(mDisposable, d, mLock);

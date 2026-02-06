@@ -25,6 +25,7 @@ public:
 
     ~SwitchMapInnerObserver() override;
 
+public:
     void onSubscribe(const DisposablePtr &d) override;
 
     void onNext(const GAny &value) override;
@@ -45,6 +46,7 @@ public:
 
     ~SwitchMapObserver() override;
 
+public:
     void onSubscribe(const DisposablePtr &d) override;
 
     void onNext(const GAny &value) override;

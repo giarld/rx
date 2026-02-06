@@ -26,6 +26,7 @@ public:
         LeakObserver::release<AllObserver>();
     }
 
+public:
     void onSubscribe(const DisposablePtr &d) override
     {
         if (DisposableHelper::validate(mUpstream, d)) {

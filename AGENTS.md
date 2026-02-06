@@ -59,6 +59,19 @@ To run a specific test case (e.g., when implementing or debugging a new operator
 
 ## Code Style and Conventions
 
+### Class Organization
+- **Public Sections**: Constructors, destructors, and copy/move operators must be in the first `public` section. Other public methods should follow in a separate `public` section.
+  ```cpp
+  class Example {
+  public:
+      Example();
+      ~Example();
+
+  public:
+      void doSomething();
+  };
+  ```
+
 ### Formatting
 - **Indentation**: 4 spaces. **No tabs.**
 - **Line Endings**: LF (Unix style).
@@ -96,6 +109,7 @@ To run a specific test case (e.g., when implementing or debugging a new operator
     - Use `std::make_shared` for allocation.
 - **Weak Pointers**: Use `std::weak_ptr` to break cycles, especially in operator implementations where the Observer might hold a reference back to the Disposable/Source.
 - **Type Erasure**: The library uses `GAny` (from `gany` lib) to pass values through the stream.
+- **Integers**: Prefer `int32_t` over `int`.
 
 ### Imports and Structure
 - **Header Guards**: `#ifndef RX_PATH_FILENAME_H` pattern.

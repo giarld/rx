@@ -23,6 +23,7 @@ public:
     {
     }
 
+public:
     void onSubscribe(const DisposablePtr &d) override;
 
     void onNext(const GAny &value) override;
@@ -54,6 +55,7 @@ public:
         LeakObserver::release<ZipCoordinator>();
     }
 
+public:
     void subscribe(const std::vector<std::shared_ptr<Observable> > &sources)
     {
         for (size_t i = 0; i < sources.size(); ++i) {

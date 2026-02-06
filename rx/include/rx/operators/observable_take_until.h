@@ -22,6 +22,7 @@ public:
 
     ~TakeUntilOtherObserver() override;
 
+public:
     void onSubscribe(const DisposablePtr &d) override;
 
     void onNext(const GAny &value) override;
@@ -49,6 +50,7 @@ public:
         LeakObserver::release<TakeUntilMainObserver>();
     }
 
+public:
     void onSubscribe(const DisposablePtr &d) override
     {
         if (DisposableHelper::validate(mUpstream, d)) {
