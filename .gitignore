@@ -60,6 +60,10 @@ tags
 .classpath
 .settings/
 deps/
+graphify-out/
+.openworkshop/
+.memory/
+CLAUDE.md
 
 # Visual Studio
 .vs/

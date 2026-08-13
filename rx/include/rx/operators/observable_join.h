@@ -6,6 +6,7 @@
 #define RX_OBSERVABLE_JOIN_H
 
 #include "../observable.h"
+#include "../exception_helper.h"
 #include "../disposables/disposable_helper.h"
 #include "../leak_observer.h"
 #include <map>
@@ -131,35 +132,33 @@ public:
     void subscribe(const ObservableSourcePtr &left, const ObservableSourcePtr &right)
     {
         const auto leftObs = std::make_shared<JoinSupportObserver>(shared_from_this(), true);
-        mDisposables.push_back(leftObs);
-        left->subscribe(leftObs);
-
         const auto rightObs = std::make_shared<JoinSupportObserver>(shared_from_this(), false);
-        mDisposables.push_back(rightObs);
-        right->subscribe(rightObs);
+        {
+            GLockerGuard lock(mGate);
+            if (mCancelled.load(std::memory_order_acquire)) {
+                return;
+            }
+            mDisposables.push_back(leftObs);
+            mDisposables.push_back(rightObs);
+        }
+
+        left->subscribe(leftObs);
+        if (!isDisposed()) {
+            right->subscribe(rightObs);
+        }
     }
 
     void dispose() override
     {
-        if (!mCancelled.exchange(true)) {
-            for (const auto &d: mDisposables) {
-                d->dispose();
-            }
-            mDisposables.clear();
-
+        std::vector<DisposablePtr> disposables;
+        {
             GLockerGuard lock(mGate);
-            for (const auto &pair: mLeftDurations) {
-                pair.second->dispose();
+            if (mCancelled.exchange(true)) {
+                return;
             }
-            mLeftDurations.clear();
-            mLefts.clear();
-
-            for (const auto &pair: mRightDurations) {
-                pair.second->dispose();
-            }
-            mRightDurations.clear();
-            mRights.clear();
+            collectDisposables(disposables);
         }
+        disposeAll(disposables);
     }
 
     bool isDisposed() const override
@@ -169,76 +168,100 @@ public:
 
     void innerError(const GAnyException &e)
     {
-        GLockerGuard lock(mGate);
-        if (mCancelled.load(std::memory_order_acquire))
-            return;
-
-        mDownstream->onError(e);
-
-        mCancelled.store(true);
-        mLeftDurations.clear();
-        mRightDurations.clear();
-        mLefts.clear();
-        mRights.clear();
+        ObserverPtr downstream;
+        std::vector<DisposablePtr> disposables;
+        {
+            GLockerGuard lock(mGate);
+            if (mCancelled.exchange(true)) {
+                return;
+            }
+            downstream = mDownstream;
+            collectDisposables(disposables);
+        }
+        disposeAll(disposables);
+        if (downstream) {
+            downstream->onError(e);
+        }
     }
 
     void innerComplete(bool /*isLeft*/)
     {
         if (mActiveCount.fetch_sub(1) == 1) {
-            GLockerGuard lock(mGate);
-            if (!mCancelled.load(std::memory_order_acquire)) {
-                mCancelled.store(true);
-                mDownstream->onComplete();
-                mLeftDurations.clear();
-                mRightDurations.clear();
+            ObserverPtr downstream;
+            std::vector<DisposablePtr> disposables;
+            {
+                GLockerGuard lock(mGate);
+                if (mCancelled.exchange(true)) {
+                    return;
+                }
+                downstream = mDownstream;
+                collectDisposables(disposables);
+            }
+            disposeAll(disposables);
+            if (downstream) {
+                downstream->onComplete();
             }
         }
     }
 
     void innerValue(bool isLeft, const GAny &value)
     {
-        GLocker lock(mGate);
-        if (mCancelled.load(std::memory_order_acquire))
-            return;
-
-        uint64_t id = mIdGenerator++;
-
         ObservableSourcePtr durationObservable;
         try {
             if (isLeft) {
-                mLefts[id] = value;
                 durationObservable = mLeftDurationSelector(value);
             } else {
-                mRights[id] = value;
                 durationObservable = mRightDurationSelector(value);
             }
-        } catch (const GAnyException &e) {
-            lock.unlock();
-            innerError(e);
+        } catch (...) {
+            innerError(ExceptionHelper::fromCurrentException("Join: Duration selector failed"));
             return;
         }
 
         if (!durationObservable) {
-            lock.unlock();
             innerError(GAnyException("Join: Duration Selector returned null"));
             return;
         }
 
+        uint64_t id;
+        {
+            GLockerGuard lock(mGate);
+            if (mCancelled.load(std::memory_order_acquire)) {
+                return;
+            }
+            id = mIdGenerator++;
+        }
         const auto durationObserver = std::make_shared<JoinDurationObserver>(shared_from_this(), id, isLeft);
-        if (isLeft) {
-            mLeftDurations[id] = durationObserver;
-        } else {
-            mRightDurations[id] = durationObserver;
+        std::vector<GAny> values;
+        {
+            GLockerGuard lock(mGate);
+            if (mCancelled.load(std::memory_order_acquire)) {
+                return;
+            }
+            if (isLeft) {
+                mLefts[id] = value;
+                mLeftDurations[id] = durationObserver;
+                for (const auto &pair: mRights) {
+                    values.push_back(pair.second);
+                }
+            } else {
+                mRights[id] = value;
+                mRightDurations[id] = durationObserver;
+                for (const auto &pair: mLefts) {
+                    values.push_back(pair.second);
+                }
+            }
         }
         durationObservable->subscribe(durationObserver);
 
-        if (isLeft) {
-            for (const auto &pair: mRights) {
-                emitResult(value, pair.second);
+        for (const auto &otherValue: values) {
+            if (isLeft) {
+                emitResult(value, otherValue);
+            } else {
+                emitResult(otherValue, value);
             }
-        } else {
-            for (const auto &pair: mLefts) {
-                emitResult(pair.second, value);
+            if (isDisposed()) {
+                return;
             }
         }
     }
@@ -261,11 +284,47 @@ private:
         GAny result;
         try {
             result = mResultSelector(left, right);
-        } catch (const GAnyException &e) {
-            innerError(e);
+        } catch (...) {
+            innerError(ExceptionHelper::fromCurrentException("Join: Result selector failed"));
             return;
         }
-        mDownstream->onNext(result);
+        ObserverPtr downstream;
+        {
+            GLockerGuard lock(mGate);
+            if (mCancelled.load(std::memory_order_acquire)) {
+                return;
+            }
+            downstream = mDownstream;
+        }
+        if (downstream) {
+            downstream->onNext(result);
+        }
+    }
+
+    void collectDisposables(std::vector<DisposablePtr> &disposables)
+    {
+        disposables.insert(disposables.end(), mDisposables.begin(), mDisposables.end());
+        for (const auto &pair: mLeftDurations) {
+            disposables.push_back(pair.second);
+        }
+        for (const auto &pair: mRightDurations) {
+            disposables.push_back(pair.second);
+        }
+        mDisposables.clear();
+        mLeftDurations.clear();
+        mRightDurations.clear();
+        mLefts.clear();
+        mRights.clear();
+        mDownstream = nullptr;
+    }
+
+    static void disposeAll(const std::vector<DisposablePtr> &disposables)
+    {
+        for (const auto &disposable: disposables) {
+            if (disposable) {
+                disposable->dispose();
+            }
+        }
     }
 
 private:

@@ -7,6 +7,7 @@
 
 #include "disposables/atomic_disposable.h"
 #include "disposables/disposable_helper.h"
+#include "exception_helper.h"
 #include "leak_observer.h"
 
 #include <gx/gany.h>
@@ -61,9 +62,10 @@ public:
         if (DisposableHelper::setOnce(mDisposable, d, mLock) && mOnSubscribeAction) {
             try {
                 mOnSubscribeAction(d);
-            } catch (const GAnyException &e) {
+            } catch (...) {
+                const auto error = ExceptionHelper::fromCurrentException("Observer: onSubscribe callback failed");
+                onError(error);
                 d->dispose();
-                onError(e);
             }
         }
     }
@@ -74,9 +76,13 @@ public:
             if (mOnNextAction) {
                 try {
                     mOnNextAction(value);
-                } catch (const GAnyException &e) {
-                    mDisposable->dispose();
-                    onError(e);
+                } catch (...) {
+                    const auto error = ExceptionHelper::fromCurrentException("Observer: onNext callback failed");
+                    const auto upstream = mDisposable;
+                    onError(error);
+                    if (upstream) {
+                        upstream->dispose();
+                    }
                 }
             }
         }
@@ -85,8 +91,12 @@ public:
     void onError(const GAnyException &e) override
     {
         if (!isDisposed()) {
-            if (mOnErrorAction) {
-                mOnErrorAction(e);
+            try {
+                if (mOnErrorAction) {
+                    mOnErrorAction(e);
+                }
+            } catch (...) {
+                // A terminal callback has no further downstream error channel.
             }
             mDisposable = DisposableHelper::disposed();
         }
@@ -95,8 +105,19 @@ public:
     void onComplete() override
     {
         if (!isDisposed()) {
-            if (mOnCompleteAction) {
-                mOnCompleteAction();
+            try {
+                if (mOnCompleteAction) {
+                    mOnCompleteAction();
+                }
+            } catch (...) {
+                const auto error = ExceptionHelper::fromCurrentException("Observer: onComplete callback failed");
+                try {
+                    if (mOnErrorAction) {
+                        mOnErrorAction(error);
+                    }
+                } catch (...) {
+                    // A terminal callback has no further downstream error channel.
+                }
             }
             mDisposable = DisposableHelper::disposed();
         }

@@ -6,6 +6,7 @@
 #define RX_OBSERVABLE_ANY_H
 
 #include "../observable.h"
+#include "../exception_helper.h"
 #include "../observer.h"
 #include "../leak_observer.h"
 
@@ -42,8 +43,9 @@ public:
         bool result;
         try {
             result = mPredicate(value);
-        } catch (const GAnyException &e) {
-            onError(e);
+        } catch (...) {
+            mUpstream->dispose();
+            onError(ExceptionHelper::fromCurrentException("Any: Predicate failed"));
             return;
         }
 

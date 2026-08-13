@@ -54,8 +54,18 @@ public:
     void onSubscribe(const DisposablePtr &d) override
     {
         if (DisposableHelper::validate(mUpstream, d)) {
-            mUpstream = d;
-            mDownstream->onSubscribe(shared_from_this());
+            bool disposeUpstream = false;
+            {
+                GLockerGuard lock(mLock);
+                if (mDone) {
+                    disposeUpstream = true;
+                } else {
+                    mUpstream = d;
+                }
+            }
+            if (disposeUpstream) {
+                d->dispose();
+            }
         }
     }
 
@@ -64,9 +74,15 @@ public:
         if (mDone) {
             return;
         }
-        GLockerGuard lock(mLock);
-        if (!mDone) {
-            mDownstream->onNext(value);
+        ObserverPtr downstream;
+        {
+            GLockerGuard lock(mLock);
+            if (!mDone) {
+                downstream = mDownstream;
+            }
+        }
+        if (downstream) {
+            downstream->onNext(value);
         }
     }
 
@@ -157,7 +173,7 @@ private:
     ObserverPtr mDownstream;
     DisposablePtr mUpstream;
     std::shared_ptr<SequentialDisposable> mOtherDisposable;
-    
+
     std::atomic<bool> mDone{false};
     GSpinLock mLock;
 };
@@ -196,9 +212,6 @@ inline void TakeUntilOtherObserver::onError(const GAnyException &e)
 
 inline void TakeUntilOtherObserver::onComplete()
 {
-    if (auto p = mParent.lock()) {
-        p->otherComplete();
-    }
 }
 
 class ObservableTakeUntil : public Observable
@@ -221,8 +234,14 @@ protected:
         auto mainObserver = std::make_shared<TakeUntilMainObserver>(observer);
         auto otherObserver = std::make_shared<TakeUntilOtherObserver>(mainObserver);
 
-        mSource->subscribe(mainObserver);
+        observer->onSubscribe(mainObserver);
+        if (mainObserver->isDisposed()) {
+            return;
+        }
         mOther->subscribe(otherObserver);
+        if (!mainObserver->isDisposed()) {
+            mSource->subscribe(mainObserver);
+        }
     }
 
 private:

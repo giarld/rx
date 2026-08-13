@@ -11,6 +11,7 @@
 #include "gx/gmutex.h"
 #include <queue>
 #include <atomic>
+#include <mutex>
 
 
 namespace rx
@@ -32,27 +33,38 @@ public:
 public:
     void onSubscribe(const DisposablePtr &d) override
     {
-        if (DisposableHelper::validate(mUpstream, d)) {
-            if (const auto ds = mDownstream) {
+        bool accepted = false;
+        {
+            GLockerGuard lock(mStateLock);
+            if (!mDisposed && !mUpstream) {
                 mUpstream = d;
-                ds->onSubscribe(this->shared_from_this());
+                accepted = true;
             }
+        }
+        if (!accepted) {
+            d->dispose();
+            return;
+        }
+        if (mDownstream) {
+            mDownstream->onSubscribe(this->shared_from_this());
         }
     }
 
     void onNext(const GAny &value) override
     {
+        std::lock_guard<std::recursive_mutex> signalLock(mSignalLock);
         if (mDone.load(std::memory_order_acquire) || isDisposed()) {
             return;
         }
 
-        auto d = mDownstream;
-        //
         {
             GLockerGuard lock(mQueueLock);
-            mQueue.push([d, value] {
-                if (d) {
-                    d->onNext(value);
+            if (mDisposed) {
+                return;
+            }
+            mQueue.push([this, value] {
+                if (const auto downstream = mDownstream) {
+                    downstream->onNext(value);
                 }
             });
         }
@@ -61,22 +73,22 @@ public:
 
     void onError(const GAnyException &e) override
     {
+        std::lock_guard<std::recursive_mutex> signalLock(mSignalLock);
+        if (isDisposed()) {
+            return;
+        }
         if (mDone.exchange(true, std::memory_order_acq_rel)) {
             return;
         }
 
-        auto d = mDownstream;
-        std::weak_ptr<ObserveOnObserver> weakThiz = this->shared_from_this();
-        //
         {
             GLockerGuard lock(mQueueLock);
-            mQueue.push([weakThiz, d, e] {
-                if (d) {
-                    d->onError(e);
+            mQueue.push([this, e] {
+                const auto downstream = mDownstream;
+                if (downstream) {
+                    downstream->onError(e);
                 }
-                if (const auto thiz = weakThiz.lock()) {
-                    thiz->disposeWorker();
-                }
+                releaseResources();
             });
         }
         schedule();
@@ -84,22 +96,22 @@ public:
 
     void onComplete() override
     {
+        std::lock_guard<std::recursive_mutex> signalLock(mSignalLock);
+        if (isDisposed()) {
+            return;
+        }
         if (mDone.exchange(true, std::memory_order_acq_rel)) {
             return;
         }
 
-        auto d = mDownstream;
-        std::weak_ptr<ObserveOnObserver> weakThiz = this->shared_from_this();
-        //
         {
             GLockerGuard lock(mQueueLock);
-            mQueue.push([weakThiz, d] {
-                if (d) {
-                    d->onComplete();
+            mQueue.push([this] {
+                const auto downstream = mDownstream;
+                if (downstream) {
+                    downstream->onComplete();
                 }
-                if (const auto thiz = weakThiz.lock()) {
-                    thiz->disposeWorker();
-                }
+                releaseResources();
             });
         }
         schedule();
@@ -107,27 +119,41 @@ public:
 
     void dispose() override
     {
+        std::lock_guard<std::recursive_mutex> signalLock(mSignalLock);
         if (!mDisposed.exchange(true, std::memory_order_acq_rel)) {
-            if (const auto up = mUpstream) {
+            DisposablePtr up;
+            {
+                GLockerGuard lock(mStateLock);
+                up = mUpstream;
+            }
+            if (up) {
                 up->dispose();
             }
-            disposeWorker();
+            releaseResources();
+        }
+    }
 
+    void releaseResources()
+    {
+        mDisposed.store(true, std::memory_order_release);
+
+        WorkerPtr worker;
+        {
+            GLockerGuard lock(mStateLock);
+            mUpstream = nullptr;
+            worker = std::move(mWorker);
+        }
+        if (worker) {
+            worker->dispose();
+        }
+
+        {
             GLockerGuard lock(mQueueLock);
             while (!mQueue.empty()) {
                 mQueue.pop();
             }
         }
-    }
-
-    void disposeWorker()
-    {
-        if (const auto w = mWorker) {
-            w->dispose();
-        }
-        mWorker = nullptr;
         mDownstream = nullptr;
-        mUpstream = nullptr;
     }
 
     bool isDisposed() const override
@@ -140,7 +166,16 @@ private:
     {
         if (mWip.fetch_add(1, std::memory_order_acq_rel) == 0) {
             std::weak_ptr<ObserveOnObserver> weakThiz = this->shared_from_this();
-            mWorker->schedule([weakThiz] {
+            WorkerPtr worker;
+            {
+                GLockerGuard lock(mStateLock);
+                worker = mWorker;
+            }
+            if (!worker) {
+                mWip.fetch_sub(1, std::memory_order_acq_rel);
+                return;
+            }
+            worker->schedule([weakThiz] {
                 if (const auto thiz = weakThiz.lock()) {
                     thiz->drain();
                 }
@@ -173,7 +208,10 @@ private:
                 }
 
                 if (task) {
-                    task();
+                    std::lock_guard<std::recursive_mutex> signalLock(mSignalLock);
+                    if (!isDisposed()) {
+                        task();
+                    }
                 } else {
                     break;
                 }
@@ -198,6 +236,8 @@ private:
 
     std::queue<std::function<void()> > mQueue;
     GMutex mQueueLock;
+    GMutex mStateLock;
+    std::recursive_mutex mSignalLock;
 };
 
 class ObservableObserveOn : public Observable

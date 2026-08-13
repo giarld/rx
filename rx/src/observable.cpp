@@ -3,6 +3,7 @@
 //
 
 #include "rx/observable.h"
+#include "rx/exception_helper.h"
 
 #include "rx/observers/blocking_first_observer.h"
 #include "rx/observers/blocking_for_each_observer.h"
@@ -115,7 +116,11 @@ std::shared_ptr<Observable> Observable::range(int64_t start, uint64_t count)
         return just(start);
     }
 
-    if (start + (count - 1) > std::numeric_limits<int64_t>::max()) {
+    const uint64_t maxDistance = start >= 0
+                                     ? static_cast<uint64_t>(std::numeric_limits<int64_t>::max() - start)
+                                     : static_cast<uint64_t>(std::numeric_limits<int64_t>::max())
+                                           + static_cast<uint64_t>(-(start + 1)) + 1;
+    if (count - 1 > maxDistance) {
         throw GAnyException("Integer overflow");
     }
 
@@ -141,9 +146,9 @@ std::shared_ptr<Observable> Observable::fromCallable(const Callable &callable)
         GAny r;
         try {
             r = callable();
-        } catch (const std::exception &e) {
+        } catch (...) {
             if (!emitter->isDisposed()) {
-                emitter->onError(GAnyException(e.what()));
+                emitter->onError(ExceptionHelper::fromCurrentException("Observable::fromCallable failed"));
             }
         }
         if (!emitter->isDisposed()) {
@@ -237,6 +242,9 @@ std::shared_ptr<Observable> Observable::switchMap(const FlatMapFunction &functio
 
 std::shared_ptr<Observable> Observable::buffer(uint64_t count, uint64_t skip)
 {
+    if (count == 0 || skip == 0) {
+        throw GAnyException("Buffer count and skip must be greater than zero");
+    }
     return std::make_shared<ObservableBuffer>(this->shared_from_this(), count, skip);
 }
 
@@ -437,6 +445,9 @@ std::shared_ptr<Observable> Observable::window(int32_t count)
 
 std::shared_ptr<Observable> Observable::window(int32_t count, int32_t skip)
 {
+    if (count <= 0 || skip <= 0) {
+        throw GAnyException("Window count and skip must be greater than zero");
+    }
     return std::make_shared<ObservableWindow>(shared_from_this(), count, skip);
 }
 

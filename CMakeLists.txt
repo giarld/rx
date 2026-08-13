@@ -6,6 +6,8 @@ set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+option(BUILD_RX_TESTS "Build RX unit tests" ON)
+
 if (NOT CMAKE_SIZEOF_VOID_P)
     if (CMAKE_CL_64)
         set(CMAKE_SIZEOF_VOID_P 8)
@@ -59,7 +61,21 @@ if (NOT GIT_DEP_gx_FOUND)
     add_subdirectory(deps/gx)
 endif ()
 
+if (BUILD_RX_TESTS AND NOT TARGET gtest)
+    GetGitDependency(https://github.com/google/googletest.git googletest main)
+    set(INSTALL_GTEST OFF CACHE BOOL "Disable GoogleTest installation" FORCE)
+    if (MSVC)
+        set(gtest_force_shared_crt ON CACHE BOOL "Use shared MSVC runtime" FORCE)
+    endif ()
+    add_subdirectory(deps/googletest EXCLUDE_FROM_ALL)
+endif ()
+
 add_subdirectory(rx)
+
+if (BUILD_RX_TESTS)
+    enable_testing()
+    add_subdirectory(tests)
+endif ()
 
 if (BUILD_RX_EXAMPLES)
     add_subdirectory(examples)

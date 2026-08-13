@@ -32,23 +32,24 @@ public:
 public:
     void dispose() override
     {
-        mDisposed.store(true, std::memory_order_release);
+        mCancelled->store(true, std::memory_order_release);
     }
 
     bool isDisposed() const override
     {
-        return mDisposed.load(std::memory_order_acquire);
+        return mCancelled->load(std::memory_order_acquire);
     }
 
     DisposablePtr schedule(const WorkerRunnable &run, uint64_t delay) override
     {
-        if (!mDisposed.load(std::memory_order_acquire)) {
+        if (!isDisposed()) {
             std::shared_ptr<AtomicDisposable> d = std::make_shared<AtomicDisposable>();
+            const auto cancelled = mCancelled;
             if (delay > 0) {
-                mTimerScheduler->post([run, ts = mTaskSystem, d] {
-                    if (!d->isDisposed()) {
-                        ts->submit([run, d] {
-                            if (!d->isDisposed()) {
+                mTimerScheduler->post([run, ts = mTaskSystem, d, cancelled] {
+                    if (!d->isDisposed() && !cancelled->load(std::memory_order_acquire)) {
+                        ts->submit([run, d, cancelled] {
+                            if (!d->isDisposed() && !cancelled->load(std::memory_order_acquire)) {
                                 run();
                             }
                             return true;
@@ -56,8 +57,8 @@ public:
                     }
                 }, delay);
             } else {
-                mTaskSystem->submit([run, d] {
-                    if (!d->isDisposed()) {
+                mTaskSystem->submit([run, d, cancelled] {
+                    if (!d->isDisposed() && !cancelled->load(std::memory_order_acquire)) {
                         run();
                     }
                     return true;
@@ -69,7 +70,7 @@ public:
     }
 
 private:
-    std::atomic<bool> mDisposed = false;
+    std::shared_ptr<std::atomic<bool> > mCancelled = std::make_shared<std::atomic<bool> >(false);
     GTaskSystem *mTaskSystem;
     GTimerScheduler *mTimerScheduler;
 };

@@ -6,6 +6,7 @@
 #define RX_OBSERVABLE_DISTINCT_UNTIL_CHANGED_H
 
 #include "../observable.h"
+#include "../exception_helper.h"
 #include "../disposables/disposable_helper.h"
 #include "../leak_observer.h"
 
@@ -15,7 +16,7 @@ namespace rx
 class DistinctUntilChangedObserver : public Observer, public Disposable, public std::enable_shared_from_this<DistinctUntilChangedObserver>
 {
 public:
-    explicit DistinctUntilChangedObserver(const ObserverPtr &observer, 
+    explicit DistinctUntilChangedObserver(const ObserverPtr &observer,
                                           MapFunction keySelector,
                                           ComparatorFunction comparator)
         : mKeySelector(std::move(keySelector))
@@ -50,9 +51,9 @@ public:
         GAny key;
         try {
             key = mKeySelector ? mKeySelector(value) : value;
-        } catch (const GAnyException &e) {
+        } catch (...) {
             mUpstream->dispose();
-            onError(e);
+            onError(ExceptionHelper::fromCurrentException("DistinctUntilChanged: Key selector failed"));
             return;
         }
 
@@ -74,9 +75,10 @@ public:
                     } else {
                         equal = (mLastKey == key);
                     }
-                } catch (const GAnyException &e) {
+                } catch (...) {
                     hasError = true;
-                    error = std::make_shared<GAnyException>(e);
+                    error = std::make_shared<GAnyException>(
+                        ExceptionHelper::fromCurrentException("DistinctUntilChanged: Comparator failed"));
                 }
                 if (!hasError && !equal) {
                     mLastKey = key;
@@ -161,7 +163,7 @@ private:
 class ObservableDistinctUntilChanged : public Observable
 {
 public:
-    explicit ObservableDistinctUntilChanged(ObservableSourcePtr source, 
+    explicit ObservableDistinctUntilChanged(ObservableSourcePtr source,
                                             MapFunction keySelector,
                                             ComparatorFunction comparator)
         : mSource(std::move(source))

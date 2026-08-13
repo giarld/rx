@@ -31,20 +31,21 @@ public:
 public:
     void dispose() override
     {
-        mDisposed.store(true, std::memory_order_release);
+        mCancelled->store(true, std::memory_order_release);
     }
 
     bool isDisposed() const override
     {
-        return mDisposed.load(std::memory_order_acquire);
+        return mCancelled->load(std::memory_order_acquire);
     }
 
     DisposablePtr schedule(const WorkerRunnable &run, uint64_t delay) override
     {
-        if (!mDisposed.load(std::memory_order_acquire)) {
+        if (!isDisposed()) {
             std::shared_ptr<AtomicDisposable> d = std::make_shared<AtomicDisposable>();
-            mTimerScheduler->post([run, d] {
-                if (!d->isDisposed()) {
+            const auto cancelled = mCancelled;
+            mTimerScheduler->post([run, d, cancelled] {
+                if (!d->isDisposed() && !cancelled->load(std::memory_order_acquire)) {
                     run();
                 }
             }, delay);
@@ -54,7 +55,7 @@ public:
     }
 
 private:
-    std::atomic<bool> mDisposed = false;
+    std::shared_ptr<std::atomic<bool> > mCancelled = std::make_shared<std::atomic<bool> >(false);
     GTimerSchedulerPtr mTimerScheduler;
 };
 } // rx

@@ -54,12 +54,17 @@ public:
 public:
     void dispose() override
     {
-        mWorker->dispose();
+        if (mDisposable) {
+            mDisposable->dispose();
+        }
+        if (mWorker) {
+            mWorker->dispose();
+        }
     }
 
     bool isDisposed() const override
     {
-        return mWorker->isDisposed();
+        return (mDisposable && mDisposable->isDisposed()) || (mWorker && mWorker->isDisposed());
     }
 
     void setDisposable(const DisposablePtr &d)

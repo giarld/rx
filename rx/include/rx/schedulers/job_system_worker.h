@@ -32,24 +32,25 @@ public:
 public:
     void dispose() override
     {
-        mDisposed.store(true, std::memory_order_release);
+        mCancelled->store(true, std::memory_order_release);
     }
 
     bool isDisposed() const override
     {
-        return mDisposed.load(std::memory_order_acquire);
+        return mCancelled->load(std::memory_order_acquire);
     }
 
     DisposablePtr schedule(const WorkerRunnable &run, uint64_t delay) override
     {
-        if (!mDisposed.load(std::memory_order_acquire)) {
+        if (!isDisposed()) {
             std::shared_ptr<AtomicDisposable> d = std::make_shared<AtomicDisposable>();
+            const auto cancelled = mCancelled;
             if (delay > 0) {
-                GTimerScheduler::global()->post([run, js = mJobSystem, d] {
-                    if (!d->isDisposed()) {
+                GTimerScheduler::global()->post([run, js = mJobSystem, d, cancelled] {
+                    if (!d->isDisposed() && !cancelled->load(std::memory_order_acquire)) {
                         auto *parent = js->createJob();
-                        js->run(js->createJob(parent, [run, d](GJobSystem *, GJobSystem::Job *) {
-                            if (!d->isDisposed()) {
+                        js->run(js->createJob(parent, [run, d, cancelled](GJobSystem *, GJobSystem::Job *) {
+                            if (!d->isDisposed() && !cancelled->load(std::memory_order_acquire)) {
                                 run();
                             }
                         }));
@@ -58,8 +59,8 @@ public:
                 }, delay);
             } else {
                 auto *parent = mJobSystem->createJob();
-                mJobSystem->run(mJobSystem->createJob(nullptr, [run, d](GJobSystem *, GJobSystem::Job *) {
-                    if (!d->isDisposed()) {
+                mJobSystem->run(mJobSystem->createJob(nullptr, [run, d, cancelled](GJobSystem *, GJobSystem::Job *) {
+                    if (!d->isDisposed() && !cancelled->load(std::memory_order_acquire)) {
                         run();
                     }
                 }));
@@ -71,7 +72,7 @@ public:
     }
 
 private:
-    std::atomic<bool> mDisposed = false;
+    std::shared_ptr<std::atomic<bool> > mCancelled = std::make_shared<std::atomic<bool> >(false);
     GJobSystem *mJobSystem;
 };
 } // rx

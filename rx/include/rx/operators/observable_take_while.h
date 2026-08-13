@@ -6,6 +6,7 @@
 #define RX_OBSERVABLE_TAKE_WHILE_H
 
 #include "../observable.h"
+#include "../exception_helper.h"
 #include "../leak_observer.h"
 
 
@@ -27,11 +28,15 @@ public:
 
     void onNext(const GAny &value) override
     {
+        if (mDone) {
+            return;
+        }
         bool result = false;
         try {
             result = mPredicate(value);
         } catch (...) {
-            mDownstream->onError(GAnyException("TakeWhile: Predicate threw exception"));
+            mDone = true;
+            mDownstream->onError(ExceptionHelper::fromCurrentException("TakeWhile: Predicate failed"));
             if (mUpstream)
                 mUpstream->dispose();
             return;
@@ -40,6 +45,7 @@ public:
         if (result) {
             mDownstream->onNext(value);
         } else {
+            mDone = true;
             mDownstream->onComplete();
             if (mUpstream)
                 mUpstream->dispose();
@@ -48,11 +54,19 @@ public:
 
     void onError(const GAnyException &e) override
     {
+        if (mDone) {
+            return;
+        }
+        mDone = true;
         mDownstream->onError(e);
     }
 
     void onComplete() override
     {
+        if (mDone) {
+            return;
+        }
+        mDone = true;
         mDownstream->onComplete();
     }
 
@@ -60,6 +74,7 @@ private:
     ObserverPtr mDownstream;
     FilterFunction mPredicate;
     DisposablePtr mUpstream;
+    bool mDone = false;
 };
 
 class ObservableTakeWhile : public Observable

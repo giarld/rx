@@ -6,9 +6,11 @@
 #define RX_OBSERVABLE_ZIP_H
 
 #include "../observable.h"
+#include "../exception_helper.h"
 #include "../leak_observer.h"
 #include <vector>
 #include <deque>
+#include <mutex>
 
 
 namespace rx
@@ -41,7 +43,7 @@ class ZipCoordinator : public Disposable, public std::enable_shared_from_this<Zi
 {
 public:
     ZipCoordinator(const ObserverPtr &downstream, CombineLatestFunction zipper, size_t count)
-        : mDownstream(downstream), mZipper(std::move(zipper)), mObservers(count)
+        : mDownstream(downstream), mZipper(std::move(zipper)), mObservers(count), mCompleted(count, false)
     {
         LeakObserver::make<ZipCoordinator>();
         mRows.resize(count);
@@ -72,59 +74,96 @@ public:
 
     void onSubscribe(size_t /*index*/, const DisposablePtr &d)
     {
-        GLockerGuard lock(mLock);
-        mDisposables.push_back(d);
+        bool disposeNow = false;
+        {
+            GLockerGuard lock(mLock);
+            if (mCancelled) {
+                disposeNow = true;
+            } else {
+                mDisposables.push_back(d);
+            }
+        }
+        if (disposeNow) {
+            d->dispose();
+        }
     }
 
     void onNext(size_t index, const GAny &value)
     {
-        GLockerGuard lock(mLock);
-        if (isDisposed())
-            return;
-
-        mRows[index].push_back(value);
-        drain();
+        std::lock_guard<std::recursive_mutex> signalLock(mSignalLock);
+        std::vector<GAny> args;
+        ObserverPtr downstream;
+        {
+            GLockerGuard lock(mLock);
+            if (mCancelled) {
+                return;
+            }
+            mRows[index].push_back(value);
+            if (!takeRow(args)) {
+                return;
+            }
+            ++mInFlight;
+            downstream = mDownstream;
+        }
+        if (!mCancelled) {
+            emit(args, downstream);
+        }
     }
 
     void onError(const GAnyException &e)
     {
-        GLockerGuard lock(mLock);
-        if (mCancelled)
-            return;
-
-        cancelAll();
-        mDownstream->onError(e);
+        std::lock_guard<std::recursive_mutex> signalLock(mSignalLock);
+        ObserverPtr downstream;
+        std::vector<DisposablePtr> disposables;
+        {
+            GLockerGuard lock(mLock);
+            if (mCancelled) {
+                return;
+            }
+            downstream = mDownstream;
+            cancelAll(disposables);
+        }
+        disposeAll(disposables);
+        if (downstream) {
+            downstream->onError(e);
+        }
     }
 
-    void onComplete()
+    void onComplete(size_t index)
     {
-        GLockerGuard lock(mLock);
-        if (mCancelled)
-            return;
-
-        mCompletedCount++;
-        
-        // Check if all sources have completed
-        if (mCompletedCount == static_cast<int>(mRows.size())) {
-            // Drain any remaining buffered items first
-            drain();
-            // Then complete and cleanup
-            cancelAll();
-            if (mDownstream) {
-                mDownstream->onComplete();
-                mDownstream = nullptr;
+        std::lock_guard<std::recursive_mutex> signalLock(mSignalLock);
+        ObserverPtr downstream;
+        std::vector<DisposablePtr> disposables;
+        {
+            GLockerGuard lock(mLock);
+            if (mCancelled) {
+                return;
             }
-        } else {
-            drain();
+            mCompleted[index] = true;
+            if (!hasCompleteEmptySource() || mInFlight != 0) {
+                return;
+            }
+            downstream = mDownstream;
+            cancelAll(disposables);
+        }
+        disposeAll(disposables);
+        if (downstream) {
+            downstream->onComplete();
         }
     }
 
     void dispose() override
     {
-        if (!mCancelled) {
+        std::lock_guard<std::recursive_mutex> signalLock(mSignalLock);
+        std::vector<DisposablePtr> disposables;
+        {
             GLockerGuard lock(mLock);
-            cancelAll();
+            if (mCancelled) {
+                return;
+            }
+            cancelAll(disposables);
         }
+        disposeAll(disposables);
     }
 
     bool isDisposed() const override
@@ -133,51 +172,78 @@ public:
     }
 
 private:
-    void drain()
+    bool takeRow(std::vector<GAny> &args)
     {
-        while (true) {
-            bool hasAll = true;
-            for (const auto &row: mRows) {
-                if (row.empty()) {
-                    hasAll = false;
-                    break;
-                }
+        for (const auto &row: mRows) {
+            if (row.empty()) {
+                return false;
             }
+        }
+        args.reserve(mRows.size());
+        for (auto &row: mRows) {
+            args.push_back(row.front());
+            row.pop_front();
+        }
+        return true;
+    }
 
-            if (hasAll) {
-                std::vector<GAny> args;
-                args.reserve(mRows.size());
-                for (auto &row: mRows) {
-                    args.push_back(row.front());
-                    row.pop_front();
-                }
-
-                try {
-                    GAny result = mZipper(args);
-                    mDownstream->onNext(result);
-                } catch (const GAnyException &e) {
-                    cancelAll();
-                    mDownstream->onError(e);
-                    return;
-                }
-            } else {
-                break;
+    bool hasCompleteEmptySource() const
+    {
+        for (size_t i = 0; i < mRows.size(); ++i) {
+            if (mCompleted[i] && mRows[i].empty()) {
+                return true;
             }
+        }
+        return false;
+    }
+
+    void emit(const std::vector<GAny> &args, const ObserverPtr &downstream)
+    {
+        GAny result;
+        try {
+            result = mZipper(args);
+        } catch (...) {
+            onError(ExceptionHelper::fromCurrentException("Zip: Zipper failed"));
+            return;
+        }
+        if (!isDisposed() && downstream) {
+            downstream->onNext(result);
+        }
+        ObserverPtr completionDownstream;
+        std::vector<DisposablePtr> disposables;
+        {
+            GLockerGuard lock(mLock);
+            if (!mCancelled) {
+                --mInFlight;
+            }
+            if (!mCancelled && mInFlight == 0 && hasCompleteEmptySource()) {
+                completionDownstream = mDownstream;
+                cancelAll(disposables);
+            }
+        }
+        disposeAll(disposables);
+        if (completionDownstream) {
+            completionDownstream->onComplete();
         }
     }
 
-    void cancelAll()
+    void cancelAll(std::vector<DisposablePtr> &disposables)
     {
         mCancelled = true;
-        for (auto &d: mDisposables) {
-            if (d) {
-                d->dispose();
-            }
-        }
+        disposables = std::move(mDisposables);
         mDisposables.clear();
         mRows.clear();
         mObservers.clear();     // Clear observer references
         mDownstream = nullptr;   // Release downstream reference
+    }
+
+    static void disposeAll(const std::vector<DisposablePtr> &disposables)
+    {
+        for (const auto &disposable: disposables) {
+            if (disposable) {
+                disposable->dispose();
+            }
+        }
     }
 
 private:
@@ -186,10 +252,12 @@ private:
     std::vector<std::shared_ptr<ZipInnerObserver> > mObservers;
     std::vector<DisposablePtr> mDisposables;
     std::vector<std::deque<GAny> > mRows;
+    std::vector<bool> mCompleted;
+    size_t mInFlight = 0;
 
-    bool mCancelled = false;
-    int mCompletedCount = 0;
+    std::atomic<bool> mCancelled = false;
     GMutex mLock;
+    std::recursive_mutex mSignalLock;
 };
 
 inline void ZipInnerObserver::onSubscribe(const DisposablePtr &d)
@@ -216,7 +284,7 @@ inline void ZipInnerObserver::onError(const GAnyException &e)
 inline void ZipInnerObserver::onComplete()
 {
     if (const auto p = mParent.lock()) {
-        p->onComplete();
+        p->onComplete(mIndex);
     }
 }
 

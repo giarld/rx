@@ -6,6 +6,7 @@
 #define RX_OBSERVABLE_DISTINCT_H
 
 #include "../observable.h"
+#include "../exception_helper.h"
 #include "../disposables/disposable_helper.h"
 #include "../leak_observer.h"
 
@@ -48,9 +49,9 @@ public:
         GAny key;
         try {
             key = mKeySelector ? mKeySelector(value) : value;
-        } catch (const GAnyException &e) {
+        } catch (...) {
             mUpstream->dispose();
-            onError(e);
+            onError(ExceptionHelper::fromCurrentException("Distinct: Key selector failed"));
             return;
         }
 
@@ -72,9 +73,10 @@ public:
                     mSeenKeys.push_back(key);
                     isNew = true;
                 }
-            } catch (const GAnyException &e) {
+            } catch (...) {
                 hasError = true;
-                error = std::make_shared<GAnyException>(e);
+                error = std::make_shared<GAnyException>(
+                    ExceptionHelper::fromCurrentException("Distinct: Key comparison failed"));
             }
         }
 

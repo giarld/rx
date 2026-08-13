@@ -6,6 +6,7 @@
 #define RX_OBSERVABLE_FLAT_MAP_H
 
 #include "../observable.h"
+#include "../exception_helper.h"
 #include "../disposables/disposable_helper.h"
 #include "../leak_observer.h"
 #include <map>
@@ -96,9 +97,9 @@ public:
         std::shared_ptr<Observable> p;
         try {
             p = mFunction(value);
-        } catch (const GAnyException &e) {
+        } catch (...) {
             mUpstream->dispose();
-            onError(e);
+            onError(ExceptionHelper::fromCurrentException("FlatMap: Mapper failed"));
             return;
         }
 
@@ -118,12 +119,11 @@ public:
         if (mDown.exchange(true, std::memory_order_acq_rel)) {
             return;
         }
-        if (const auto d = mDownstream) {
-            d->onError(e);
+        const auto downstream = mDownstream;
+        dispose();
+        if (downstream) {
+            downstream->onError(e);
         }
-
-        mDownstream = nullptr;
-        mUpstream = nullptr;
     }
 
     void onComplete() override
@@ -179,9 +179,10 @@ public:
         if (mDown.exchange(true, std::memory_order_acq_rel)) {
             return;
         }
+        const auto downstream = mDownstream;
         dispose();
-        if (const auto d = mDownstream) {
-            d->onError(e);
+        if (downstream) {
+            downstream->onError(e);
         }
     }
 

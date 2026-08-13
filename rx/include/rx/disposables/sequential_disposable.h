@@ -51,12 +51,13 @@ public:
 
     bool isDisposed() const override
     {
+        GLockerGuard lock(mLock);
         return DisposableHelper::isDisposed(mDisposable);
     }
 
 private:
     DisposablePtr mDisposable;
-    GMutex mLock;
+    mutable GMutex mLock;
 };
 
 using SequentialDisposablePtr = std::shared_ptr<SequentialDisposable>;

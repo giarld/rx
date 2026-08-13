@@ -6,6 +6,7 @@
 #define RX_OBSERVABLE_SEQUENCE_EQUAL_H
 
 #include "../observable.h"
+#include "../exception_helper.h"
 #include "../observer.h"
 #include "../leak_observer.h"
 #include <deque>
@@ -61,13 +62,26 @@ public:
         mObservers[1] = inner2;
 
         source1->subscribe(inner1);
-        source2->subscribe(inner2);
+        if (!isDisposed()) {
+            source2->subscribe(inner2);
+        }
     }
 
     void onSubscribe(int index, const DisposablePtr &d)
     {
-        if (DisposableHelper::setOnce(mDisposables[index], d, mLock)) {
-            // ok
+        bool disposeNow = false;
+        {
+            GLockerGuard lock(mLock);
+            if (mCancelled) {
+                disposeNow = true;
+            } else if (!mDisposables[index]) {
+                mDisposables[index] = d;
+            } else {
+                disposeNow = true;
+            }
+        }
+        if (disposeNow) {
+            d->dispose();
         }
     }
 
@@ -148,7 +162,7 @@ private:
                     }
                 } catch (...) {
                     cancelAll();
-                    mDownstream->onError(GAnyException("Comparator failed"));
+                    mDownstream->onError(ExceptionHelper::fromCurrentException("SequenceEqual: Comparator failed"));
                     return;
                 }
 
@@ -216,7 +230,7 @@ private:
 
     bool mDone1 = false;
     bool mDone2 = false;
-    bool mCancelled = false;
+    std::atomic<bool> mCancelled = false;
 
     GMutex mLock;
     // Keep resources alive?

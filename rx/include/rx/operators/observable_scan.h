@@ -6,6 +6,7 @@
 #define RX_OBSERVABLE_SCAN_H
 
 #include "../observable.h"
+#include "../exception_helper.h"
 #include "../disposables/disposable_helper.h"
 #include "../leak_observer.h"
 
@@ -44,19 +45,19 @@ public:
             return;
         }
         if (const auto a = mDownstream) {
-            const GAny v = mValue;
-            if (v == nullptr) {
+            if (!mHasValue) {
                 mValue = t;
+                mHasValue = true;
                 a->onNext(t);
             } else {
                 GAny u;
                 try {
-                    u = mAccumulator(v, t);
-                } catch (const std::exception &e) {
+                    u = mAccumulator(mValue, t);
+                } catch (...) {
                     if (const auto up = mUpstream) {
                         up->dispose();
                     }
-                    onError(GAnyException(e.what()));
+                    onError(ExceptionHelper::fromCurrentException("Scan: Accumulator failed"));
                     return;
                 }
                 mValue = u;
@@ -116,6 +117,7 @@ private:
     DisposablePtr mUpstream;
     std::atomic<bool> mDone = false;
     GAny mValue;
+    bool mHasValue = false;
 };
 
 class ObservableScan : public Observable

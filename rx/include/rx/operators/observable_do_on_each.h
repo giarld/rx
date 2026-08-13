@@ -6,6 +6,7 @@
 #define RX_OBSERVABLE_DO_ON_EACH_H
 
 #include "../observable.h"
+#include "../exception_helper.h"
 #include "../leak_observer.h"
 
 
@@ -38,23 +39,19 @@ public:
 public:
     void onSubscribe(const DisposablePtr &d) override
     {
+        mUpstream = d;
+        if (const auto downstream = mDownstream) {
+            downstream->onSubscribe(shared_from_this());
+        }
         if (mOnSubscribe) {
             try {
                 mOnSubscribe(d);
-            } catch (const GAnyException &e) {
-                d->dispose();
-                onError(e);
-                return;
             } catch (...) {
+                const auto error = ExceptionHelper::fromCurrentException("DoOnEach: onSubscribe failed");
+                onError(error);
                 d->dispose();
-                onError(GAnyException("DoOnEach: onSubscribe failed"));
                 return;
             }
-        }
-
-        mUpstream = d;
-        if (const auto ds = mDownstream) {
-            ds->onSubscribe(shared_from_this()); // Pass ourselves as the disposable wrapper
         }
     }
 
@@ -66,11 +63,13 @@ public:
         if (mOnNext) {
             try {
                 mOnNext(value);
-            } catch (const GAnyException &e) {
-                onError(e);
-                return;
             } catch (...) {
-                onError(GAnyException("DoOnEach: onNext failed"));
+                const auto error = ExceptionHelper::fromCurrentException("DoOnEach: onNext failed");
+                const auto upstream = mUpstream;
+                onError(error);
+                if (upstream) {
+                    upstream->dispose();
+                }
                 return;
             }
         }
@@ -85,18 +84,17 @@ public:
         if (isDisposed())
             return;
 
-        bool errorEmitted = false;
+        GAnyException downstreamError = e;
         try {
             if (mOnError) {
                 mOnError(e);
             }
         } catch (...) {
-            // Composite exception? For now just log or ignore double fault
+            downstreamError = ExceptionHelper::fromCurrentException("DoOnEach: onError failed");
         }
 
         if (const auto ds = mDownstream) {
-            ds->onError(e);
-            errorEmitted = true;
+            ds->onError(downstreamError);
         }
 
         mUpstream = nullptr; // Break upstream reference after downstream call
@@ -113,16 +111,9 @@ public:
             if (mOnComplete) {
                 mOnComplete();
             }
-        } catch (const GAnyException &e) {
-            if (const auto ds = mDownstream) {
-                ds->onError(e);
-            }
-            mUpstream = nullptr;
-            runFinally();
-            return;
         } catch (...) {
             if (const auto ds = mDownstream) {
-                ds->onError(GAnyException("DoOnEach: onComplete failed"));
+                ds->onError(ExceptionHelper::fromCurrentException("DoOnEach: onComplete failed"));
             }
             mUpstream = nullptr;
             runFinally();

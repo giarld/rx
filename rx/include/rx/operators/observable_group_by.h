@@ -6,8 +6,11 @@
 #define RX_OBSERVABLE_GROUP_BY_H
 
 #include "../observable.h"
+#include "../exception_helper.h"
 #include "../grouped_observable.h"
-#include <map>
+#include <optional>
+#include <utility>
+#include <vector>
 
 namespace rx
 {
@@ -41,16 +44,9 @@ private:
     MapFunction mKeySelector;
     MapFunction mValueSelector;
     DisposablePtr mUpstream;
+    std::atomic<bool> mDone{false};
 
-    struct GAnyCompare
-    {
-        bool operator()(const GAny &lhs, const GAny &rhs) const
-        {
-            return lhs.toString() < rhs.toString();
-        }
-    };
-
-    std::map<GAny, std::shared_ptr<GroupState>, GAnyCompare> mGroups;
+    std::vector<std::pair<GAny, std::shared_ptr<GroupState> > > mGroups;
 };
 
 // Helper to act as the "Subject" for each group
@@ -58,11 +54,26 @@ class GroupState
 {
 public:
     GroupState(GAny key, std::shared_ptr<GroupByObserver> parent)
-        : mKey(std::move(key)), mParent(std::move(parent))
+        : mKey(std::move(key)), mParent(std::move(parent)), mState(std::make_shared<State>())
     {
-        mObservable = Observable::create([this](const ObservableEmitterPtr &emitter) {
-            GLockerGuard lock(mLock);
-            mEmitters.push_back(emitter);
+        const auto state = mState;
+        mObservable = Observable::create([state](const ObservableEmitterPtr &emitter) {
+            std::optional<GAnyException> error;
+            bool completed = false;
+            {
+                GLockerGuard lock(state->lock);
+                error = state->error;
+                completed = state->completed;
+                if (!error && !completed) {
+                    state->emitters.push_back(emitter);
+                    return;
+                }
+            }
+            if (error) {
+                emitter->onError(error.value());
+            } else {
+                emitter->onComplete();
+            }
         });
     }
 
@@ -70,44 +81,69 @@ public:
 
     void onNext(const GAny &value)
     {
-        GLockerGuard lock(mLock);
-        auto it = mEmitters.begin();
-        while (it != mEmitters.end()) {
-            if ((*it)->isDisposed()) {
-                it = mEmitters.erase(it);
-            } else {
-                (*it)->onNext(value);
-                ++it;
+        std::vector<ObservableEmitterPtr> emitters;
+        {
+            GLockerGuard lock(mState->lock);
+            auto it = mState->emitters.begin();
+            while (it != mState->emitters.end()) {
+                if ((*it)->isDisposed()) {
+                    it = mState->emitters.erase(it);
+                } else {
+                    emitters.push_back(*it);
+                    ++it;
+                }
             }
+        }
+        for (const auto &emitter: emitters) {
+            emitter->onNext(value);
         }
     }
 
     void onError(const GAnyException &e)
     {
-        GLockerGuard lock(mLock);
-        for (const auto &emitter: mEmitters) {
-            if (!emitter->isDisposed())
-                emitter->onError(e);
+        std::vector<ObservableEmitterPtr> emitters;
+        {
+            GLockerGuard lock(mState->lock);
+            mState->error = e;
+            emitters = std::move(mState->emitters);
+            mState->emitters.clear();
         }
-        mEmitters.clear();
+        for (const auto &emitter: emitters) {
+            if (!emitter->isDisposed()) {
+                emitter->onError(e);
+            }
+        }
     }
 
     void onComplete()
     {
-        GLockerGuard lock(mLock);
-        for (const auto &emitter: mEmitters) {
-            if (!emitter->isDisposed())
-                emitter->onComplete();
+        std::vector<ObservableEmitterPtr> emitters;
+        {
+            GLockerGuard lock(mState->lock);
+            mState->completed = true;
+            emitters = std::move(mState->emitters);
+            mState->emitters.clear();
         }
-        mEmitters.clear();
+        for (const auto &emitter: emitters) {
+            if (!emitter->isDisposed()) {
+                emitter->onComplete();
+            }
+        }
     }
 
 private:
+    struct State
+    {
+        std::vector<ObservableEmitterPtr> emitters;
+        std::optional<GAnyException> error;
+        bool completed = false;
+        GMutex lock;
+    };
+
     GAny mKey;
     std::weak_ptr<GroupByObserver> mParent;
     std::shared_ptr<Observable> mObservable;
-    std::vector<ObservableEmitterPtr> mEmitters;
-    GMutex mLock;
+    std::shared_ptr<State> mState;
 };
 
 // Implementation of GroupByObserver methods
@@ -121,26 +157,40 @@ inline void GroupByObserver::onSubscribe(const DisposablePtr &d)
 
 inline void GroupByObserver::onNext(const GAny &t)
 {
+    if (mDone.load(std::memory_order_acquire)) {
+        return;
+    }
+
     GAny key;
     try {
         key = mKeySelector(t);
     } catch (...) {
-        onError(GAnyException("GroupBy: KeySelector threw exception"));
+        onError(ExceptionHelper::fromCurrentException("GroupBy: Key selector failed"));
         if (mUpstream)
             mUpstream->dispose();
         return;
     }
 
     std::shared_ptr<GroupState> groupState;
-    bool isNew = false; {
-        const auto it = mGroups.find(key);
-        if (it != mGroups.end()) {
-            groupState = it->second;
-        } else {
+    bool isNew = false;
+    try {
+        for (const auto &group: mGroups) {
+            if (group.first.typeInfo() == key.typeInfo() && group.first == key) {
+                groupState = group.second;
+                break;
+            }
+        }
+        if (!groupState) {
             isNew = true;
             groupState = std::make_shared<GroupState>(key, this->shared_from_this());
-            mGroups[key] = groupState;
+            mGroups.emplace_back(key, groupState);
         }
+    } catch (...) {
+        onError(ExceptionHelper::fromCurrentException("GroupBy: Key comparison failed"));
+        if (mUpstream) {
+            mUpstream->dispose();
+        }
+        return;
     }
 
     if (isNew) {
@@ -153,7 +203,7 @@ inline void GroupByObserver::onNext(const GAny &t)
         try {
             value = mValueSelector(t);
         } catch (...) {
-            onError(GAnyException("GroupBy: ValueSelector threw exception"));
+            onError(ExceptionHelper::fromCurrentException("GroupBy: Value selector failed"));
             if (mUpstream)
                 mUpstream->dispose();
             return;
@@ -165,8 +215,11 @@ inline void GroupByObserver::onNext(const GAny &t)
 
 inline void GroupByObserver::onError(const GAnyException &e)
 {
-    for (const auto &pair: mGroups) {
-        pair.second->onError(e);
+    if (mDone.exchange(true, std::memory_order_acq_rel)) {
+        return;
+    }
+    for (const auto &group: mGroups) {
+        group.second->onError(e);
     }
     mGroups.clear();
     if (mDownstream)
@@ -175,8 +228,11 @@ inline void GroupByObserver::onError(const GAnyException &e)
 
 inline void GroupByObserver::onComplete()
 {
-    for (const auto &pair: mGroups) {
-        pair.second->onComplete();
+    if (mDone.exchange(true, std::memory_order_acq_rel)) {
+        return;
+    }
+    for (const auto &group: mGroups) {
+        group.second->onComplete();
     }
     mGroups.clear();
     if (mDownstream)

@@ -7,7 +7,9 @@
 
 #include "observable_empty.h"
 #include "../observable.h"
+#include "../exception_helper.h"
 #include "../leak_observer.h"
+#include <mutex>
 
 
 namespace rx
@@ -68,93 +70,146 @@ public:
 
     void onSubscribe(size_t index, const DisposablePtr &d)
     {
-        GLockerGuard lock(mMutex);
-        if (mDone.load(std::memory_order_acquire)) {
-            d->dispose();
-            return;
+        bool disposeNow = false;
+        {
+            GLockerGuard lock(mMutex);
+            if (mDone.load(std::memory_order_acquire)) {
+                disposeNow = true;
+            } else {
+                mDisposables[index] = d;
+            }
         }
-        mDisposables[index] = d;
+        if (disposeNow) {
+            d->dispose();
+        }
     }
 
     void onNext(size_t index, const GAny &value)
     {
-        GLocker<GMutex> lock(mMutex);
+        std::lock_guard<std::recursive_mutex> signalLock(mSignalLock);
+        std::vector<GAny> values;
+        ObserverPtr downstream;
+        {
+            GLockerGuard lock(mMutex);
+            if (mDone.load(std::memory_order_acquire)) {
+                return;
+            }
+
+            mValues[index] = value;
+            if (!mHasValue[index]) {
+                mHasValue[index] = true;
+                mEmittedCount++;
+            }
+
+            if (mEmittedCount != mValues.size()) {
+                return;
+            }
+            values = mValues;
+            ++mInFlight;
+            downstream = mDownstream;
+        }
+
         if (mDone.load(std::memory_order_acquire)) {
+            GLockerGuard lock(mMutex);
+            --mInFlight;
             return;
         }
 
-        mValues[index] = value;
-        if (!mHasValue[index]) {
-            mHasValue[index] = true;
-            mEmittedCount++;
+        GAny result;
+        try {
+            result = mCombiner(values);
+        } catch (...) {
+            onError(ExceptionHelper::fromCurrentException("CombineLatest: Combiner failed"));
+            return;
         }
 
-        if (mEmittedCount == mValues.size()) {
-            GAny result;
-            try {
-                result = mCombiner(mValues);
-            } catch (const GAnyException &e) {
-                lock.unlock();
-                onError(e);
+        if (!mDone.load(std::memory_order_acquire) && downstream) {
+            downstream->onNext(result);
+        }
+
+        ObserverPtr completionDownstream;
+        std::vector<DisposablePtr> disposables;
+        {
+            GLockerGuard lock(mMutex);
+            if (mDone.load(std::memory_order_acquire)) {
                 return;
             }
-            if (const auto d = mDownstream) {
-                d->onNext(result);
+            --mInFlight;
+            if (mActiveCount == 0 && mInFlight == 0) {
+                mDone.store(true, std::memory_order_release);
+                completionDownstream = mDownstream;
+                mDownstream = nullptr;
+                takeDisposables(disposables);
             }
+        }
+        disposeAll(disposables);
+        if (completionDownstream) {
+            completionDownstream->onComplete();
         }
     }
 
     void onError(const GAnyException &e)
     {
+        std::lock_guard<std::recursive_mutex> signalLock(mSignalLock);
         if (mDone.exchange(true, std::memory_order_acq_rel)) {
             return;
         }
 
-        disposeAllInternal();
-
-        if (const auto d = mDownstream) {
-            d->onError(e);
+        ObserverPtr downstream;
+        std::vector<DisposablePtr> disposables;
+        {
+            GLockerGuard lock(mMutex);
+            downstream = mDownstream;
+            mDownstream = nullptr;
+            takeDisposables(disposables);
         }
-        mDownstream = nullptr;
+        disposeAll(disposables);
+        if (downstream) {
+            downstream->onError(e);
+        }
     }
 
     void onComplete(size_t index)
     {
-        GLocker<GMutex> lock(mMutex);
-        if (mDone.load(std::memory_order_acquire)) {
-            return;
-        }
-
-        if (!mHasValue[index]) {
-            mDone.store(true, std::memory_order_release);
-            disposeAllInternalNoLock();
-            lock.unlock();
-            if (const auto d = mDownstream) {
-                d->onComplete();
+        std::lock_guard<std::recursive_mutex> signalLock(mSignalLock);
+        ObserverPtr downstream;
+        std::vector<DisposablePtr> disposables;
+        {
+            GLockerGuard lock(mMutex);
+            if (mDone.load(std::memory_order_acquire)) {
+                return;
             }
-            mDownstream = nullptr;
-            return;
-        }
 
-        mActiveCount--;
-        if (mActiveCount == 0) {
-            mDone.store(true, std::memory_order_release);
-            disposeAllInternalNoLock();
-            lock.unlock();
-            if (const auto d = mDownstream) {
-                d->onComplete();
+            if (mHasValue[index]) {
+                mActiveCount--;
+                if (mActiveCount != 0 || mInFlight != 0) {
+                    return;
+                }
             }
+            mDone.store(true, std::memory_order_release);
+            downstream = mDownstream;
             mDownstream = nullptr;
+            takeDisposables(disposables);
+        }
+        disposeAll(disposables);
+        if (downstream) {
+            downstream->onComplete();
         }
     }
 
     void dispose() override
     {
+        std::lock_guard<std::recursive_mutex> signalLock(mSignalLock);
         if (mDone.exchange(true, std::memory_order_acq_rel)) {
             return;
         }
-        disposeAllInternal();
-        mDownstream = nullptr;
+        std::vector<DisposablePtr> disposables;
+        {
+            GLockerGuard lock(mMutex);
+            mDownstream = nullptr;
+            takeDisposables(disposables);
+        }
+        disposeAll(disposables);
     }
 
     bool isDisposed() const override
@@ -163,18 +218,17 @@ public:
     }
 
 private:
-    void disposeAllInternal()
+    void takeDisposables(std::vector<DisposablePtr> &disposables)
     {
-        GLockerGuard lock(mMutex);
-        disposeAllInternalNoLock();
+        disposables = std::move(mDisposables);
+        mDisposables.clear();
     }
 
-    void disposeAllInternalNoLock()
+    static void disposeAll(const std::vector<DisposablePtr> &disposables)
     {
-        for (auto &d: mDisposables) {
-            if (d) {
-                d->dispose();
-                d = nullptr;
+        for (const auto &disposable: disposables) {
+            if (disposable) {
+                disposable->dispose();
             }
         }
     }
@@ -187,10 +241,12 @@ private:
     std::vector<bool> mHasValue;
     size_t mActiveCount;
     size_t mEmittedCount;
+    size_t mInFlight = 0;
 
     std::vector<DisposablePtr> mDisposables;
     std::atomic<bool> mDone = false;
     GMutex mMutex;
+    std::recursive_mutex mSignalLock;
 };
 
 inline void CombineLatestInnerObserver::onSubscribe(const DisposablePtr &d)

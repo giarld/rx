@@ -6,6 +6,7 @@
 #define RX_OBSERVABLE_REDUCE_H
 
 #include "../observable.h"
+#include "../exception_helper.h"
 #include "../disposables/disposable_helper.h"
 #include "../leak_observer.h"
 
@@ -52,11 +53,11 @@ public:
         GAny u;
         try {
             u = mAccumulator(mValue, t);
-        } catch (const std::exception &e) {
+        } catch (...) {
             if (const auto up = mUpstream) {
                 up->dispose();
             }
-            onError(GAnyException(e.what()));
+            onError(ExceptionHelper::fromCurrentException("Reduce: Accumulator failed"));
             return;
         }
         mValue = u;

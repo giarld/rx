@@ -6,6 +6,7 @@
 #define RX_OBSERVABLE_FILTER_H
 
 #include "../observable.h"
+#include "../exception_helper.h"
 #include "../disposables/disposable_helper.h"
 #include "../leak_observer.h"
 
@@ -45,9 +46,9 @@ public:
         bool b;
         try {
             b = mFilter(value);
-        } catch (const GAnyException &e) {
+        } catch (...) {
             mUpstream->dispose();
-            onError(e);
+            onError(ExceptionHelper::fromCurrentException("Filter: Predicate failed"));
             return;
         }
         if (b) {

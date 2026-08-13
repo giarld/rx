@@ -41,37 +41,43 @@ public:
 public:
     void dispose() override
     {
-        mDisposed.store(true, std::memory_order_release);
+        mCancelled->store(true, std::memory_order_release);
     }
 
     bool isDisposed() const override
     {
-        return mDisposed.load(std::memory_order_acquire);
+        return mCancelled->load(std::memory_order_acquire);
     }
 
     DisposablePtr schedule(const WorkerRunnable &run, uint64_t delay) override
     {
-        if (!mDisposed.load(std::memory_order_acquire)) {
+        if (!isDisposed()) {
             std::shared_ptr<AtomicDisposable> d = std::make_shared<AtomicDisposable>();
-            GTime beginTime = GTime::currentSteadyTime();
-            mTaskSystem->submit([run, beginTime, delay, d] {
-                if (d->isDisposed()) {
-                    return false;
+            const auto cancelled = mCancelled;
+            const auto taskSystem = mTaskSystem;
+            const auto submit = [run, taskSystem, d, cancelled] {
+                if (d->isDisposed() || cancelled->load(std::memory_order_acquire)) {
+                    return;
                 }
-                const int64_t oDelay = delay - GTime::currentSteadyTime().milliSecsTo(beginTime);
-                if (oDelay > 0) {
-                    GThread::mSleep(oDelay);
-                }
-                run();
-                return true;
-            });
+                taskSystem->submit([run, d, cancelled] {
+                    if (!d->isDisposed() && !cancelled->load(std::memory_order_acquire)) {
+                        run();
+                    }
+                    return true;
+                });
+            };
+            if (delay > 0) {
+                GTimerScheduler::global()->post(submit, delay);
+            } else {
+                submit();
+            }
             return d;
         }
         return EmptyDisposable::instance();
     }
 
 private:
-    std::atomic<bool> mDisposed = false;
+    std::shared_ptr<std::atomic<bool> > mCancelled = std::make_shared<std::atomic<bool> >(false);
     std::shared_ptr<GTaskSystem> mTaskSystem;
 };
 } // rx

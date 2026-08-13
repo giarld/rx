@@ -10,10 +10,31 @@
 #include "../disposables/sequential_disposable.h"
 #include "../leak_observer.h"
 #include <atomic>
+#include <mutex>
 
 
 namespace rx
 {
+class TimeoutObserver;
+
+class TimeoutFallbackObserver : public Observer
+{
+public:
+    explicit TimeoutFallbackObserver(const std::shared_ptr<TimeoutObserver> &parent)
+        : mParent(parent)
+    {
+    }
+
+public:
+    void onSubscribe(const DisposablePtr &d) override;
+    void onNext(const GAny &value) override;
+    void onError(const GAnyException &e) override;
+    void onComplete() override;
+
+private:
+    std::weak_ptr<TimeoutObserver> mParent;
+};
+
 class TimeoutObserver : public Observer, public Disposable, public std::enable_shared_from_this<TimeoutObserver>
 {
 public:
@@ -36,94 +57,150 @@ public:
 public:
     void onSubscribe(const DisposablePtr &d) override
     {
-        if (mInFallback.load(std::memory_order_acquire)) {
-            mUpstream->update(d);
+        bool disposeNow = false;
+        ObserverPtr downstream;
+        {
+            std::lock_guard<std::recursive_mutex> signalLock(mSignalLock);
+            disposeNow = mDisposed;
+            downstream = mDownstream;
+        }
+        if (disposeNow) {
+            d->dispose();
             return;
         }
         mUpstream->update(d);
-        if (const auto ds = mDownstream) {
-            ds->onSubscribe(shared_from_this());
+        if (downstream) {
+            downstream->onSubscribe(shared_from_this());
         }
         scheduleTimeout(0);
     }
 
     void onNext(const GAny &value) override
     {
-        if (mInFallback.load(std::memory_order_acquire)) {
-            if (const auto ds = mDownstream) {
-                ds->onNext(value);
+        uint64_t idx;
+        {
+            std::lock_guard<std::recursive_mutex> signalLock(mSignalLock);
+            if (mDisposed || mDone) {
+                return;
             }
-            return;
-        }
-
-        if (mDone.load(std::memory_order_acquire)) {
-            return;
-        }
-
-        const uint64_t idx = ++mIndex;
-        if (const auto ds = mDownstream) {
-            ds->onNext(value);
+            idx = ++mIndex;
+            if (const auto downstream = mDownstream) {
+                downstream->onNext(value);
+            }
         }
         scheduleTimeout(idx);
     }
 
     void onError(const GAnyException &e) override
     {
-        if (mInFallback.load(std::memory_order_acquire)) {
-            if (const auto ds = mDownstream) {
-                ds->onError(e);
+        ObserverPtr downstream;
+        {
+            std::lock_guard<std::recursive_mutex> signalLock(mSignalLock);
+            if (mDisposed || mDone.exchange(true, std::memory_order_acq_rel)) {
+                return;
             }
-            mDownstream = nullptr;
-            mWorker->dispose();
-            return;
+            mDisposed = true;
+            downstream = std::move(mDownstream);
         }
-
-        if (mDone.exchange(true, std::memory_order_acq_rel)) {
-            return;
-        }
-
         mTimeoutDisposable->dispose();
-        if (const auto ds = mDownstream) {
-            ds->onError(e);
-        }
         mWorker->dispose();
-        mDownstream = nullptr;
+        if (downstream) {
+            downstream->onError(e);
+        }
     }
 
     void onComplete() override
     {
-        if (mInFallback.load(std::memory_order_acquire)) {
-            if (const auto ds = mDownstream) {
-                ds->onComplete();
+        ObserverPtr downstream;
+        {
+            std::lock_guard<std::recursive_mutex> signalLock(mSignalLock);
+            if (mDisposed || mDone.exchange(true, std::memory_order_acq_rel)) {
+                return;
             }
-            mDownstream = nullptr;
-            mWorker->dispose();
-            return;
+            mDisposed = true;
+            downstream = std::move(mDownstream);
         }
-
-        if (mDone.exchange(true, std::memory_order_acq_rel)) {
-            return;
-        }
-
         mTimeoutDisposable->dispose();
-        if (const auto ds = mDownstream) {
-            ds->onComplete();
-        }
         mWorker->dispose();
-        mDownstream = nullptr;
+        if (downstream) {
+            downstream->onComplete();
+        }
     }
 
     void dispose() override
     {
+        {
+            std::lock_guard<std::recursive_mutex> signalLock(mSignalLock);
+            if (mDisposed.exchange(true)) {
+                return;
+            }
+            mDone = true;
+            mDownstream = nullptr;
+        }
         mUpstream->dispose();
         mTimeoutDisposable->dispose();
         mWorker->dispose();
-        mDownstream = nullptr;
     }
 
     bool isDisposed() const override
     {
-        return mWorker->isDisposed();
+        return mDisposed.load(std::memory_order_acquire);
+    }
+
+    void fallbackSubscribe(const DisposablePtr &d)
+    {
+        bool disposeNow;
+        {
+            std::lock_guard<std::recursive_mutex> signalLock(mSignalLock);
+            disposeNow = mDisposed || !mInFallback;
+        }
+        if (disposeNow) {
+            d->dispose();
+            return;
+        }
+        mUpstream->update(d);
+    }
+
+    void fallbackNext(const GAny &value)
+    {
+        std::lock_guard<std::recursive_mutex> signalLock(mSignalLock);
+        if (!mDisposed && mInFallback && mDownstream) {
+            mDownstream->onNext(value);
+        }
+    }
+
+    void fallbackError(const GAnyException &e)
+    {
+        ObserverPtr downstream;
+        {
+            std::lock_guard<std::recursive_mutex> signalLock(mSignalLock);
+            if (mDisposed || !mInFallback) {
+                return;
+            }
+            mDisposed = true;
+            downstream = std::move(mDownstream);
+        }
+        mWorker->dispose();
+        if (downstream) {
+            downstream->onError(e);
+        }
+    }
+
+    void fallbackComplete()
+    {
+        ObserverPtr downstream;
+        {
+            std::lock_guard<std::recursive_mutex> signalLock(mSignalLock);
+            if (mDisposed || !mInFallback) {
+                return;
+            }
+            mDisposed = true;
+            downstream = std::move(mDownstream);
+        }
+        mWorker->dispose();
+        if (downstream) {
+            downstream->onComplete();
+        }
     }
 
 private:
@@ -140,25 +217,33 @@ private:
 
     void onTimeout(uint64_t idx)
     {
-        if (mIndex.load(std::memory_order_acquire) == idx) {
-            if (mDone.exchange(true, std::memory_order_acq_rel)) {
+        ObservableSourcePtr fallback;
+        ObserverPtr downstream;
+        bool timeoutError = false;
+        {
+            std::lock_guard<std::recursive_mutex> signalLock(mSignalLock);
+            if (mDisposed || mIndex.load(std::memory_order_acquire) != idx
+                || mDone.exchange(true, std::memory_order_acq_rel)) {
                 return;
             }
-
             if (mFallback) {
                 mInFallback.store(true, std::memory_order_release);
-                mUpstream->update(nullptr);
-                mTimeoutDisposable->dispose();
-                mFallback->subscribe(shared_from_this());
+                fallback = mFallback;
             } else {
-                mUpstream->dispose();
-                mTimeoutDisposable->dispose();
+                mDisposed = true;
+                timeoutError = true;
+                downstream = std::move(mDownstream);
+            }
+        }
 
-                if (const auto ds = mDownstream) {
-                    ds->onError(GAnyException("Timeout"));
-                }
-                mWorker->dispose();
-                mDownstream = nullptr;
+        mUpstream->update(nullptr);
+        mTimeoutDisposable->dispose();
+        if (fallback) {
+            fallback->subscribe(std::make_shared<TimeoutFallbackObserver>(shared_from_this()));
+        } else if (timeoutError) {
+            mWorker->dispose();
+            if (downstream) {
+                downstream->onError(GAnyException("Timeout"));
             }
         }
     }
@@ -173,7 +258,39 @@ private:
     std::atomic<uint64_t> mIndex{0};
     std::atomic<bool> mDone{false};
     std::atomic<bool> mInFallback{false};
+    std::atomic<bool> mDisposed{false};
+    std::recursive_mutex mSignalLock;
 };
+
+inline void TimeoutFallbackObserver::onSubscribe(const DisposablePtr &d)
+{
+    if (const auto parent = mParent.lock()) {
+        parent->fallbackSubscribe(d);
+    } else {
+        d->dispose();
+    }
+}
+
+inline void TimeoutFallbackObserver::onNext(const GAny &value)
+{
+    if (const auto parent = mParent.lock()) {
+        parent->fallbackNext(value);
+    }
+}
+
+inline void TimeoutFallbackObserver::onError(const GAnyException &e)
+{
+    if (const auto parent = mParent.lock()) {
+        parent->fallbackError(e);
+    }
+}
+
+inline void TimeoutFallbackObserver::onComplete()
+{
+    if (const auto parent = mParent.lock()) {
+        parent->fallbackComplete();
+    }
+}
 
 class ObservableTimeout : public Observable
 {

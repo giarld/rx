@@ -6,6 +6,7 @@
 #define RX_OBSERVABLE_CONCAT_MAP_H
 
 #include "../observable.h"
+#include "../exception_helper.h"
 #include "../observer.h"
 #include "../disposables/sequential_disposable.h"
 #include "../disposables/disposable_helper.h"
@@ -190,8 +191,11 @@ inline void ConcatMapObserver::onError(const GAnyException &e)
     if (mDone)
         return;
     mDone = true;
+    const auto downstream = mDownstream;
     dispose();
-    mDownstream->onError(e);
+    if (downstream) {
+        downstream->onError(e);
+    }
 }
 
 inline void ConcatMapObserver::onComplete()
@@ -231,8 +235,11 @@ inline void ConcatMapObserver::innerNext(const GAny &value)
 
 inline void ConcatMapObserver::innerError(const GAnyException &e)
 {
+    const auto downstream = mDownstream;
     dispose();
-    mDownstream->onError(e);
+    if (downstream) {
+        downstream->onError(e);
+    }
 }
 
 inline void ConcatMapObserver::innerComplete()
@@ -288,13 +295,12 @@ inline void ConcatMapObserver::drain()
                 std::shared_ptr<Observable> p;
                 try {
                     p = mMapper(v);
-                } catch (const GAnyException &e) {
-                    dispose();
-                    mDownstream->onError(e);
-                    return;
                 } catch (...) {
+                    const auto downstream = mDownstream;
                     dispose();
-                    mDownstream->onError(GAnyException("ConcatMap: Mapper failed"));
+                    if (downstream) {
+                        downstream->onError(ExceptionHelper::fromCurrentException("ConcatMap: Mapper failed"));
+                    }
                     return;
                 }
 
@@ -309,15 +315,10 @@ inline void ConcatMapObserver::drain()
             }
         }
 
-        if (mWip.fetch_sub(missed) == missed) {
+        missed = mWip.fetch_sub(missed) - missed;
+        if (missed == 0) {
             break;
         }
-
-        const int32_t old = mWip.fetch_add(-missed);
-        if (old == missed) {
-            break;
-        }
-        missed = old - missed;
     }
 }
 } // rx

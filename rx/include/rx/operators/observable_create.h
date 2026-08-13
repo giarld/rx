@@ -6,6 +6,7 @@
 #define RX_OBSERVABLE_CREATE_H
 
 #include "../observable.h"
+#include "../exception_helper.h"
 #include "../disposables/disposable_helper.h"
 #include "../leak_observer.h"
 
@@ -47,7 +48,7 @@ public:
                 if (const auto o = mDownstream) {
                     o->onError(e);
                 }
-            } catch (GAnyException _e) {
+            } catch (...) {
             }
             dispose();
         }
@@ -60,7 +61,7 @@ public:
                 if (const auto o = mDownstream) {
                     o->onComplete();
                 }
-            } catch (GAnyException _e) {
+            } catch (...) {
             }
             dispose();
         }
@@ -112,8 +113,8 @@ protected:
 
         try {
             mSource(parent);
-        } catch (const GAnyException &e) {
-            parent->onError(e);
+        } catch (...) {
+            parent->onError(ExceptionHelper::fromCurrentException("ObservableCreate: Source failed"));
         }
     }
 

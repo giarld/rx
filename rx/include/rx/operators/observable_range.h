@@ -14,8 +14,8 @@ namespace rx
 class RangeDisposable : public AtomicDisposable
 {
 public:
-    explicit RangeDisposable(const ObserverPtr &observer, int64_t start, int64_t end)
-        : mDownstream(observer), mStart(start), mEnd(end)
+    explicit RangeDisposable(const ObserverPtr &observer, int64_t start, uint64_t count)
+        : mDownstream(observer), mStart(start), mCount(count)
     {
         LeakObserver::make<RangeDisposable>();
     }
@@ -30,10 +30,16 @@ public:
     {
         if (!isDisposed()) {
             if (const auto o = mDownstream) {
-                for (int64_t i = mStart; i < mEnd; i++) {
-                    o->onNext(i);
+                int64_t value = mStart;
+                for (uint64_t emitted = 0; emitted < mCount && !isDisposed(); ++emitted) {
+                    o->onNext(value);
+                    if (emitted + 1 < mCount) {
+                        ++value;
+                    }
                 }
-                o->onComplete();
+                if (!isDisposed()) {
+                    o->onComplete();
+                }
 
                 mDownstream = nullptr;
             }
@@ -43,14 +49,14 @@ public:
 private:
     ObserverPtr mDownstream;
     int64_t mStart;
-    int64_t mEnd;
+    uint64_t mCount;
 };
 
 class ObservableRange : public Observable
 {
 public:
     explicit ObservableRange(int64_t start, uint64_t count)
-        : mStart(start), mEnd(start + count)
+        : mStart(start), mCount(count)
     {
         LeakObserver::make<ObservableRange>();
     }
@@ -63,14 +69,14 @@ public:
 protected:
     void subscribeActual(const ObserverPtr &observer) override
     {
-        const auto parent = std::make_shared<RangeDisposable>(observer, mStart, mEnd);
+        const auto parent = std::make_shared<RangeDisposable>(observer, mStart, mCount);
         observer->onSubscribe(parent);
         parent->run();
     }
 
 private:
     int64_t mStart;
-    int64_t mEnd;
+    uint64_t mCount;
 };
 } // rx
 

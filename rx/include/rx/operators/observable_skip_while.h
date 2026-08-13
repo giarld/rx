@@ -6,6 +6,7 @@
 #define RX_OBSERVABLE_SKIP_WHILE_H
 
 #include "../observable.h"
+#include "../exception_helper.h"
 #include "../leak_observer.h"
 
 
@@ -28,17 +29,23 @@ public:
 public:
     void onSubscribe(const DisposablePtr &d) override
     {
+        mUpstream = d;
         mDownstream->onSubscribe(d);
     }
 
     void onNext(const GAny &value) override
     {
+        if (mDone) {
+            return;
+        }
         if (mSkipping) {
             bool result = false;
             try {
                 result = mPredicate(value);
             } catch (...) {
-                mDownstream->onError(GAnyException("SkipWhile: Predicate threw exception"));
+                mDone = true;
+                mUpstream->dispose();
+                mDownstream->onError(ExceptionHelper::fromCurrentException("SkipWhile: Predicate failed"));
                 return;
             }
 
@@ -53,18 +60,28 @@ public:
 
     void onError(const GAnyException &e) override
     {
+        if (mDone) {
+            return;
+        }
+        mDone = true;
         mDownstream->onError(e);
     }
 
     void onComplete() override
     {
+        if (mDone) {
+            return;
+        }
+        mDone = true;
         mDownstream->onComplete();
     }
 
 private:
     ObserverPtr mDownstream;
     FilterFunction mPredicate;
+    DisposablePtr mUpstream;
     bool mSkipping = true;
+    bool mDone = false;
 };
 
 class ObservableSkipWhile : public Observable

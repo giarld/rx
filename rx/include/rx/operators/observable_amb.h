@@ -71,20 +71,21 @@ public:
 
     void onSubscribe(size_t index, const DisposablePtr &d)
     {
-        GLockerGuard lock(mLock);
-        if (mDisposables[index]) {
-            d->dispose();
-            return;
+        bool disposeNow = false;
+        {
+            GLockerGuard lock(mLock);
+            if (mDisposables[index]) {
+                disposeNow = true;
+            } else {
+                mDisposables[index] = d;
+                const int winner = mWinner.load(std::memory_order_acquire);
+                disposeNow = (winner != -1 && static_cast<size_t>(winner) != index) || mIsDisposed;
+                if (disposeNow) {
+                    mDisposables[index] = DisposableHelper::disposed();
+                }
+            }
         }
-        mDisposables[index] = d;
-        // If we picked a winner before this subscription arrived, and it wasn't this one (impossible if serial, but possible if async),
-        // or if generally disposed.
-        // Actually, check general disposal or winner state.
-        const int winner = mWinner.load(std::memory_order_acquire);
-        if (winner != -1 && static_cast<size_t>(winner) != index) {
-            // Someone else already won, dispose this new one immediately
-            d->dispose();
-        } else if (winner == -1 && mIsDisposed) {
+        if (disposeNow) {
             d->dispose();
         }
     }
@@ -132,32 +133,37 @@ public:
 
     void dispose() override
     {
-        if (!mIsDisposed) {
-            mIsDisposed = true;
+        if (!mIsDisposed.exchange(true, std::memory_order_acq_rel)) {
             disposeAll((size_t) -1);
         }
     }
 
     bool isDisposed() const override
     {
-        return mIsDisposed;
+        return mIsDisposed.load(std::memory_order_acquire);
     }
 
 private:
     void disposeAll(size_t keepIndex)
     {
-        GLockerGuard lock(mLock);
-        for (size_t i = 0; i < mDisposables.size(); ++i) {
-            if (i != keepIndex) {
-                auto d = mDisposables[i];
-                if (d) {
-                    d->dispose();
+        std::vector<DisposablePtr> disposables;
+        {
+            GLockerGuard lock(mLock);
+            for (size_t i = 0; i < mDisposables.size(); ++i) {
+                if (i != keepIndex) {
+                    auto d = mDisposables[i];
+                    if (d && d != DisposableHelper::disposed()) {
+                        disposables.push_back(d);
+                    }
                     mDisposables[i] = DisposableHelper::disposed();
                 }
             }
+            if (keepIndex == (size_t) -1) {
+                mDownstream = nullptr;
+            }
         }
-        if (keepIndex == (size_t) -1) {
-            mDownstream = nullptr;
+        for (const auto &disposable: disposables) {
+            disposable->dispose();
         }
     }
 
@@ -166,7 +172,7 @@ private:
     std::vector<DisposablePtr> mDisposables;
     std::atomic<int> mWinner{-1};
     GMutex mLock;
-    bool mIsDisposed = false; // Flag for downstream disposal
+    std::atomic<bool> mIsDisposed{false};
 };
 
 inline void AmbInnerObserver::onSubscribe(const DisposablePtr &d)

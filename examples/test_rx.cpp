@@ -12,6 +12,7 @@
 
 #include <cstdlib>
 #include <atomic>
+#include <limits>
 #include <vector>
 #include <string>
 #include <cstdio>
@@ -61,6 +62,229 @@ private:
     rx::DisposablePtr mWrapped;
     bool mDisposed = false;
 };
+
+void require(bool condition, const char *message)
+{
+    if (!condition) {
+        printLog("Regression test failed: {}", message);
+        std::abort();
+    }
+}
+
+class DisposeOnFirstObserver : public Observer
+{
+public:
+    void onSubscribe(const DisposablePtr &d) override
+    {
+        mDisposable = d;
+    }
+
+    void onNext(const GAny &value) override
+    {
+        ++mCount;
+        mLastValue = value.toInt64();
+        mDisposable->dispose();
+    }
+
+    void onError(const GAnyException & /*e*/) override
+    {
+        mError = true;
+    }
+
+    void onComplete() override
+    {
+        mCompleted = true;
+    }
+
+public:
+    int32_t mCount = 0;
+    int64_t mLastValue = 0;
+    bool mError = false;
+    bool mCompleted = false;
+
+private:
+    DisposablePtr mDisposable;
+};
+
+struct ManualTaskState
+{
+    WorkerRunnable runnable;
+    std::shared_ptr<AtomicDisposable> disposable;
+};
+
+class ManualWorker : public Worker
+{
+public:
+    explicit ManualWorker(std::shared_ptr<ManualTaskState> state)
+        : mState(std::move(state))
+    {
+    }
+
+public:
+    DisposablePtr schedule(const WorkerRunnable &run, uint64_t /*delay*/) override
+    {
+        mState->runnable = run;
+        mState->disposable = std::make_shared<AtomicDisposable>();
+        return mState->disposable;
+    }
+
+    void dispose() override
+    {
+        mDisposed = true;
+    }
+
+    bool isDisposed() const override
+    {
+        return mDisposed;
+    }
+
+private:
+    std::shared_ptr<ManualTaskState> mState;
+    bool mDisposed = false;
+};
+
+class ManualScheduler : public Scheduler
+{
+public:
+    ManualScheduler()
+        : mState(std::make_shared<ManualTaskState>())
+    {
+    }
+
+public:
+    WorkerPtr createWorker() override
+    {
+        return std::make_shared<ManualWorker>(mState);
+    }
+
+    void runPending() const
+    {
+        if (mState->runnable && mState->disposable && !mState->disposable->isDisposed()) {
+            mState->runnable();
+        }
+    }
+
+private:
+    std::shared_ptr<ManualTaskState> mState;
+};
+
+void testRegressionFixes()
+{
+    printLog("\n========================================");
+    printLog("Testing Regression Fixes");
+    printLog("========================================");
+
+    int32_t zipCompleteCount = 0;
+    Observable::zip(Observable::just(1, 2), Observable::just(10, 20),
+                    [](const GAny &left, const GAny &right) { return left.toInt32() + right.toInt32(); })
+        ->subscribe([](const GAny &) {},
+                    [](const GAnyException &) { require(false, "zip normal path reported an error"); },
+                    [&zipCompleteCount] { ++zipCompleteCount; });
+    require(zipCompleteCount == 1, "zip did not complete");
+
+    int32_t zipSourceErrors = 0;
+    Observable::zip(Observable::error(GAnyException("zip source")), Observable::just(1),
+                    [](const GAny &left, const GAny &right) { return left.toInt32() + right.toInt32(); })
+        ->subscribe([](const GAny &) {},
+                    [&zipSourceErrors](const GAnyException &) { ++zipSourceErrors; },
+                    [] { require(false, "zip source error completed"); });
+    require(zipSourceErrors == 1, "zip source error was not delivered");
+
+    int32_t zipSelectorErrors = 0;
+    Observable::zip(Observable::just(1), Observable::just(2),
+                    [](const GAny &, const GAny &) -> GAny { throw GAnyException("zip selector"); })
+        ->subscribe([](const GAny &) {},
+                    [&zipSelectorErrors](const GAnyException &) { ++zipSelectorErrors; },
+                    [] { require(false, "zip selector error completed"); });
+    require(zipSelectorErrors == 1, "zip selector error was not delivered");
+
+    int32_t flatMapErrors = 0;
+    Observable::just(1)
+        ->flatMap([](const GAny &) { return Observable::error(GAnyException("inner")); })
+        ->subscribe([](const GAny &) {},
+                    [&flatMapErrors](const GAnyException &) { ++flatMapErrors; },
+                    [] { require(false, "flatMap inner error completed"); });
+    require(flatMapErrors == 1, "flatMap inner error was not delivered");
+
+    int32_t joinCompleteCount = 0;
+    Observable::just(1)
+        ->join(Observable::just(2),
+               [](const GAny &) { return Observable::empty(); },
+               [](const GAny &) { return Observable::empty(); },
+               [](const GAny &left, const GAny &right) { return left.toInt32() + right.toInt32(); })
+        ->subscribe([](const GAny &) {},
+                    [](const GAnyException &) { require(false, "join synchronous duration reported an error"); },
+                    [&joinCompleteCount] { ++joinCompleteCount; });
+    require(joinCompleteCount == 1, "join synchronous duration did not complete");
+
+    int32_t joinSelectorErrors = 0;
+    Observable::just(1)
+        ->join(Observable::just(2),
+               [](const GAny &) { return Observable::never(); },
+               [](const GAny &) { return Observable::never(); },
+               [](const GAny &, const GAny &) -> GAny { throw GAnyException("join selector"); })
+        ->subscribe([](const GAny &) {},
+                    [&joinSelectorErrors](const GAnyException &) { ++joinSelectorErrors; },
+                    [] { require(false, "join selector error completed"); });
+    require(joinSelectorErrors == 1, "join selector error was not delivered");
+
+    int32_t takeUntilEmptyValues = 0;
+    int32_t takeUntilEmptyCompletions = 0;
+    Observable::just(1)
+        ->takeUntil(Observable::empty())
+        ->subscribe([&takeUntilEmptyValues](const GAny &) { ++takeUntilEmptyValues; },
+                    [](const GAnyException &) { require(false, "takeUntil(empty) reported an error"); },
+                    [&takeUntilEmptyCompletions] { ++takeUntilEmptyCompletions; });
+    require(takeUntilEmptyValues == 1 && takeUntilEmptyCompletions == 1,
+            "takeUntil(empty) terminated the main source");
+
+    int32_t takeUntilTriggerValues = 0;
+    int32_t takeUntilTriggerCompletions = 0;
+    Observable::range(1, 100)
+        ->takeUntil(Observable::just(0))
+        ->subscribe([&takeUntilTriggerValues](const GAny &) { ++takeUntilTriggerValues; },
+                    [](const GAnyException &) { require(false, "takeUntil(trigger) reported an error"); },
+                    [&takeUntilTriggerCompletions] { ++takeUntilTriggerCompletions; });
+    require(takeUntilTriggerValues == 0 && takeUntilTriggerCompletions == 1,
+            "takeUntil subscribed to the main source before the trigger");
+
+    ManualScheduler scheduler;
+    bool taskRan = false;
+    const auto scheduled = scheduler.scheduleDirect([&taskRan] { taskRan = true; }, 1);
+    scheduled->dispose();
+    scheduler.runPending();
+    require(!taskRan, "scheduleDirect task ran after disposal");
+
+    std::vector<int64_t> rangeValues;
+    Observable::range(-5, 5)->subscribe([&rangeValues](const GAny &value) {
+        rangeValues.push_back(value.toInt64());
+    });
+    require(rangeValues == std::vector<int64_t>({-5, -4, -3, -2, -1}),
+            "range rejected or corrupted a negative start");
+
+    std::vector<int64_t> boundaryValues;
+    Observable::range(std::numeric_limits<int64_t>::max() - 1, 2)->subscribe(
+        [&boundaryValues](const GAny &value) { boundaryValues.push_back(value.toInt64()); });
+    require(boundaryValues == std::vector<int64_t>({std::numeric_limits<int64_t>::max() - 1,
+                                                    std::numeric_limits<int64_t>::max()}),
+            "range failed at the int64 upper boundary");
+
+    bool overflowThrown = false;
+    try {
+        Observable::range(std::numeric_limits<int64_t>::max(), 2);
+    } catch (const GAnyException &) {
+        overflowThrown = true;
+    }
+    require(overflowThrown, "range did not reject an overflowing interval");
+
+    const auto rangeObserver = std::make_shared<DisposeOnFirstObserver>();
+    Observable::range(0, 1000000)->subscribe(rangeObserver);
+    require(rangeObserver->mCount == 1 && rangeObserver->mLastValue == 0 &&
+                !rangeObserver->mError && !rangeObserver->mCompleted,
+            "range continued emitting after disposal");
+
+    printLog("\n✓ Regression Fix Tests Completed\n");
+}
 
 // ========================================
 // Creation Operators Tests
@@ -455,7 +679,7 @@ void testWindow()
             auto window = v.castAs<std::shared_ptr<Observable>>();
             int id = ++wCount;
             printLog("Window {} Created", id);
-            
+
             window->subscribe([id](const GAny &val) {
                 printLog("Window {} val: {}", id, val.toString());
             });
@@ -470,7 +694,7 @@ void testWindow()
             auto window = v.castAs<std::shared_ptr<Observable>>();
             int id = ++wCount;
             printLog("Window {} Created", id);
-            
+
             window->subscribe([id](const GAny &val) {
                 printLog("Window {} val: {}", id, val.toString());
             });
@@ -485,7 +709,7 @@ void testWindow()
             auto window = v.castAs<std::shared_ptr<Observable>>();
             int id = ++wCount;
             printLog("Window {} Created", id);
-            
+
             window->subscribe([id](const GAny &val) {
                 printLog("Window {} val: {}", id, val.toString());
             });
@@ -574,7 +798,7 @@ void testAmb()
     // Test: amb (race condition)
     printLog("\n--- Test: amb (race skipped) ---");
     // Async tests skipped due to scheduler interaction issues in test environment
-    
+
     // Test: amb with immediate values
     printLog("\n--- Test: amb (immediate) ---");
     // Usually the first one subscribed wins if both are immediate, but ambiguous.
@@ -586,7 +810,7 @@ void testAmb()
 
     // Test: amb with error
     printLog("\n--- Test: amb (error skipped) ---");
-    
+
     printLog("\n✓ Amb Operator Tests Completed\n");
 }
 
@@ -1149,6 +1373,7 @@ int main(int argc, char **argv)
     testSchedulers();
     testBooleanOperators();
     testComplexScenarios();
+    testRegressionFixes();
     testMemoryLeaks();
 
     // Final memory leak check

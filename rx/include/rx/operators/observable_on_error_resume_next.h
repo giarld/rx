@@ -6,6 +6,7 @@
 #define RX_OBSERVABLE_ON_ERROR_RESUME_NEXT_H
 
 #include "../observable.h"
+#include "../exception_helper.h"
 #include "../observer.h"
 #include "../leak_observer.h"
 #include "../disposables/sequential_disposable.h"
@@ -52,12 +53,10 @@ public:
                     if (mDownstream)
                         mDownstream->onError(GAnyException("OnErrorResumeNext: Function returned null Observable"));
                 }
-            } catch (const GAnyException &ex) {
-                if (mDownstream)
-                    mDownstream->onError(ex);
             } catch (...) {
                 if (mDownstream)
-                    mDownstream->onError(GAnyException("OnErrorResumeNext: Unknown error in resume function"));
+                    mDownstream->onError(
+                        ExceptionHelper::fromCurrentException("OnErrorResumeNext: Resume function failed"));
             }
         } else {
             if (mDownstream)

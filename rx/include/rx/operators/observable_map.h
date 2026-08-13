@@ -6,6 +6,7 @@
 #define RX_OBSERVABLE_MAP_H
 
 #include "../observable.h"
+#include "../exception_helper.h"
 #include "../leak_observer.h"
 
 
@@ -45,11 +46,11 @@ public:
             GAny r;
             try {
                 r = mFunction(value);
-            } catch (const GAnyException &e) {
+            } catch (...) {
                 if (const auto u = mUpstream) {
                     u->dispose();
                 }
-                onError(e);
+                onError(ExceptionHelper::fromCurrentException("Map: Mapper failed"));
                 return;
             }
             d->onNext(r);

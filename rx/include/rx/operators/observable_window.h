@@ -18,17 +18,27 @@ class WindowSubject
 {
 public:
     WindowSubject()
+        : mState(std::make_shared<State>())
     {
         LeakObserver::make<WindowSubject>();
 
-        mObservable = Observable::create([this](const ObservableEmitterPtr &emitter) {
-            GLockerGuard lock(mLock);
-            if (mError) {
-                emitter->onError(mError.value());
-            } else if (mCompleted) {
-                emitter->onComplete();
+        const auto state = mState;
+        mObservable = Observable::create([state](const ObservableEmitterPtr &emitter) {
+            std::optional<GAnyException> error;
+            bool completed = false;
+            {
+                GLockerGuard lock(state->lock);
+                error = state->error;
+                completed = state->completed;
+                if (!error && !completed) {
+                    state->emitters.push_back(emitter);
+                    return;
+                }
+            }
+            if (error) {
+                emitter->onError(error.value());
             } else {
-                mEmitters.push_back(emitter);
+                emitter->onComplete();
             }
         });
     }
@@ -43,46 +53,67 @@ public:
 
     void onNext(const GAny &value)
     {
-        GLockerGuard lock(mLock);
-        auto it = mEmitters.begin();
-        while (it != mEmitters.end()) {
-            if ((*it)->isDisposed()) {
-                it = mEmitters.erase(it);
-            } else {
-                (*it)->onNext(value);
-                ++it;
+        std::vector<ObservableEmitterPtr> emitters;
+        {
+            GLockerGuard lock(mState->lock);
+            auto it = mState->emitters.begin();
+            while (it != mState->emitters.end()) {
+                if ((*it)->isDisposed()) {
+                    it = mState->emitters.erase(it);
+                } else {
+                    emitters.push_back(*it);
+                    ++it;
+                }
             }
+        }
+        for (const auto &emitter: emitters) {
+            emitter->onNext(value);
         }
     }
 
     void onError(const GAnyException &e)
     {
-        GLockerGuard lock(mLock);
-        mError = e;
-        for (const auto &emitter: mEmitters) {
-            if (!emitter->isDisposed())
-                emitter->onError(e);
+        std::vector<ObservableEmitterPtr> emitters;
+        {
+            GLockerGuard lock(mState->lock);
+            mState->error = e;
+            emitters = std::move(mState->emitters);
+            mState->emitters.clear();
         }
-        mEmitters.clear();
+        for (const auto &emitter: emitters) {
+            if (!emitter->isDisposed()) {
+                emitter->onError(e);
+            }
+        }
     }
 
     void onComplete()
     {
-        GLockerGuard lock(mLock);
-        mCompleted = true;
-        for (const auto &emitter: mEmitters) {
-            if (!emitter->isDisposed())
-                emitter->onComplete();
+        std::vector<ObservableEmitterPtr> emitters;
+        {
+            GLockerGuard lock(mState->lock);
+            mState->completed = true;
+            emitters = std::move(mState->emitters);
+            mState->emitters.clear();
         }
-        mEmitters.clear();
+        for (const auto &emitter: emitters) {
+            if (!emitter->isDisposed()) {
+                emitter->onComplete();
+            }
+        }
     }
 
 private:
+    struct State
+    {
+        std::vector<ObservableEmitterPtr> emitters;
+        std::optional<GAnyException> error;
+        bool completed = false;
+        GMutex lock;
+    };
+
     std::shared_ptr<Observable> mObservable;
-    std::vector<ObservableEmitterPtr> mEmitters;
-    std::optional<GAnyException> mError;
-    bool mCompleted = false;
-    GMutex mLock;
+    std::shared_ptr<State> mState;
 };
 
 class ObservableWindow;

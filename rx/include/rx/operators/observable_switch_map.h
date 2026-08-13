@@ -6,7 +6,9 @@
 #define RX_OBSERVABLE_SWITCH_MAP_H
 
 #include "../observable.h"
+#include "../exception_helper.h"
 #include "../observer.h"
+#include "../disposables/atomic_disposable.h"
 #include "../disposables/sequential_disposable.h"
 #include "../disposables/disposable_helper.h"
 #include "../leak_observer.h"
@@ -176,7 +178,7 @@ inline void SwitchMapObserver::onSubscribe(const DisposablePtr &d)
 
 inline void SwitchMapObserver::onNext(const GAny &value)
 {
-    if (mDone)
+    if (mDone || mDisposed)
         return;
 
     uint64_t id;
@@ -187,24 +189,20 @@ inline void SwitchMapObserver::onNext(const GAny &value)
         mInnerActive = true;
     }
 
+    // A new upstream value switches away from the previous inner immediately,
+    // even if the mapper fails or returns a null Observable.
+    mInnerDisposable->update(std::make_shared<AtomicDisposable>());
+
     std::shared_ptr<Observable> p;
     try {
         p = mMapper(value);
-    } catch (const GAnyException &e) {
-        dispose();
-        mDownstream->onError(e);
-        return;
     } catch (...) {
-        dispose();
-        mDownstream->onError(GAnyException("SwitchMap: Mapper failed"));
+        onError(ExceptionHelper::fromCurrentException("SwitchMap: Mapper failed"));
         return;
     }
 
     if (!p) {
-        GLockerGuard lock(mLock);
-        if (mIndex == id) { // If still current
-            mInnerActive = false;
-        }
+        onError(GAnyException("SwitchMap: Mapper returned null Observable"));
         return;
     }
 
@@ -214,22 +212,31 @@ inline void SwitchMapObserver::onNext(const GAny &value)
 
 inline void SwitchMapObserver::onError(const GAnyException &e)
 {
-    if (mDone)
+    if (mDone || mDisposed)
         return;
     mDone = true;
+    const auto downstream = mDownstream;
     dispose();
-    mDownstream->onError(e);
+    if (downstream) {
+        downstream->onError(e);
+    }
 }
 
 inline void SwitchMapObserver::onComplete()
 {
-    if (mDone)
+    if (mDone || mDisposed)
         return;
 
-    GLockerGuard lock(mLock);
-    mDone = true;
-    if (!mInnerActive) {
-        mDownstream->onComplete();
+    ObserverPtr downstream;
+    {
+        GLockerGuard lock(mLock);
+        mDone = true;
+        if (!mInnerActive) {
+            downstream = mDownstream;
+        }
+    }
+    if (downstream) {
+        downstream->onComplete();
     }
 }
 
@@ -250,9 +257,13 @@ inline bool SwitchMapObserver::isDisposed() const
 
 inline void SwitchMapObserver::innerSubscribe(uint64_t id, const DisposablePtr &d)
 {
-    GLockerGuard lock(mLock);
-    if (mIndex == id) {
-        mInnerDisposable->update(d); // Dispose previous
+    bool current = false;
+    {
+        GLockerGuard lock(mLock);
+        current = !mDisposed && mIndex == id;
+    }
+    if (current) {
+        mInnerDisposable->update(d);
     } else {
         d->dispose();
     }
@@ -260,30 +271,44 @@ inline void SwitchMapObserver::innerSubscribe(uint64_t id, const DisposablePtr &
 
 inline void SwitchMapObserver::innerNext(uint64_t id, const GAny &value)
 {
-    GLockerGuard lock(mLock);
-    if (mIndex == id) {
-        mDownstream->onNext(value);
+    ObserverPtr downstream;
+    {
+        GLockerGuard lock(mLock);
+        if (!mDisposed && mIndex == id) {
+            downstream = mDownstream;
+        }
+    }
+    if (downstream) {
+        downstream->onNext(value);
     }
 }
 
 inline void SwitchMapObserver::innerError(uint64_t id, const GAnyException &e)
 {
-    GLockerGuard lock(mLock);
-    if (mIndex == id) {
-        // Errors from inner terminate the stream
-        dispose();
-        mDownstream->onError(e);
+    bool current = false;
+    {
+        GLockerGuard lock(mLock);
+        current = !mDisposed && mIndex == id;
+    }
+    if (current) {
+        onError(e);
     }
 }
 
 inline void SwitchMapObserver::innerComplete(uint64_t id)
 {
-    GLockerGuard lock(mLock);
-    if (mIndex == id) {
-        mInnerActive = false;
-        if (mDone) {
-            mDownstream->onComplete();
+    ObserverPtr downstream;
+    {
+        GLockerGuard lock(mLock);
+        if (!mDisposed && mIndex == id) {
+            mInnerActive = false;
+            if (mDone) {
+                downstream = mDownstream;
+            }
         }
+    }
+    if (downstream) {
+        downstream->onComplete();
     }
 }
 } // rx
