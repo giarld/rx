@@ -35,8 +35,12 @@ public:
         //     return;
         // }
         if (!isDisposed()) {
-            if (const auto o = mDownstream) {
-                o->onNext(value);
+            try {
+                if (const auto o = mDownstream) {
+                    o->onNext(value);
+                }
+            } catch (...) {
+                onError(ExceptionHelper::fromCurrentException("CreateEmitter: Downstream onNext failed"));
             }
         }
     }

@@ -6,7 +6,9 @@
 #define RX_OBSERVABLE_WINDOW_H
 
 #include "../observable.h"
+#include "../disposables/disposable_helper.h"
 #include "../leak_observer.h"
+#include <atomic>
 #include <deque>
 #include <vector>
 #include <optional>
@@ -118,7 +120,7 @@ private:
 
 class ObservableWindow;
 
-class WindowObserver : public Observer, public std::enable_shared_from_this<WindowObserver>
+class WindowObserver : public Observer, public Disposable, public std::enable_shared_from_this<WindowObserver>
 {
 public:
     WindowObserver(ObserverPtr downstream, int32_t count, int32_t skip)
@@ -135,18 +137,28 @@ public:
 public:
     void onSubscribe(const DisposablePtr &d) override
     {
-        if (mDownstream)
-            mDownstream->onSubscribe(d);
-        mUpstream = d;
+        if (DisposableHelper::validate(mUpstream, d)) {
+            mUpstream = d;
+            if (const auto downstream = mDownstream) {
+                downstream->onSubscribe(shared_from_this());
+            }
+        }
     }
 
     void onNext(const GAny &value) override
     {
+        if (mDone.load(std::memory_order_acquire)) {
+            return;
+        }
+
         // 1. Check if we need to start a new window
         if (mIndex % mSkip == 0) {
             const auto window = std::make_shared<WindowSubject>();
             mWindows.push_back({window, 0});
             mDownstream->onNext(window->getObservable());
+            if (mDone.load(std::memory_order_acquire)) {
+                return;
+            }
         }
 
         // 2. Emit value to all active windows
@@ -168,22 +180,53 @@ public:
 
     void onError(const GAnyException &e) override
     {
+        if (mDone.exchange(true, std::memory_order_acq_rel)) {
+            return;
+        }
         for (const auto &w: mWindows) {
             w.subject->onError(e);
         }
         mWindows.clear();
         if (mDownstream)
             mDownstream->onError(e);
+        mDownstream = nullptr;
+        mUpstream = nullptr;
     }
 
     void onComplete() override
     {
+        if (mDone.exchange(true, std::memory_order_acq_rel)) {
+            return;
+        }
         for (const auto &w: mWindows) {
             w.subject->onComplete();
         }
         mWindows.clear();
         if (mDownstream)
             mDownstream->onComplete();
+        mDownstream = nullptr;
+        mUpstream = nullptr;
+    }
+
+    void dispose() override
+    {
+        if (mDone.exchange(true, std::memory_order_acq_rel)) {
+            return;
+        }
+        if (mUpstream) {
+            mUpstream->dispose();
+        }
+        for (const auto &w: mWindows) {
+            w.subject->onComplete();
+        }
+        mWindows.clear();
+        mDownstream = nullptr;
+        mUpstream = nullptr;
+    }
+
+    bool isDisposed() const override
+    {
+        return mDone.load(std::memory_order_acquire);
     }
 
 private:
@@ -197,6 +240,7 @@ private:
     int32_t mCount;
     int32_t mSkip;
     DisposablePtr mUpstream;
+    std::atomic<bool> mDone{false};
 
     int64_t mIndex = 0;
     std::deque<ActiveWindow> mWindows;

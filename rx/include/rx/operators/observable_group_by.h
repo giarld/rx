@@ -6,6 +6,7 @@
 #define RX_OBSERVABLE_GROUP_BY_H
 
 #include "../observable.h"
+#include "../disposables/disposable_helper.h"
 #include "../exception_helper.h"
 #include "../grouped_observable.h"
 #include <optional>
@@ -16,7 +17,7 @@ namespace rx
 {
 class GroupState;
 
-class GroupByObserver : public Observer, public std::enable_shared_from_this<GroupByObserver>
+class GroupByObserver : public Observer, public Disposable, public std::enable_shared_from_this<GroupByObserver>
 {
 public:
     GroupByObserver(ObserverPtr downstream, MapFunction keySelector, MapFunction valueSelector)
@@ -38,6 +39,10 @@ public:
     void onError(const GAnyException &e) override;
 
     void onComplete() override;
+
+    void dispose() override;
+
+    bool isDisposed() const override;
 
 private:
     ObserverPtr mDownstream;
@@ -150,9 +155,12 @@ private:
 
 inline void GroupByObserver::onSubscribe(const DisposablePtr &d)
 {
-    if (mDownstream)
-        mDownstream->onSubscribe(d);
-    mUpstream = d;
+    if (DisposableHelper::validate(mUpstream, d)) {
+        mUpstream = d;
+        if (const auto downstream = mDownstream) {
+            downstream->onSubscribe(shared_from_this());
+        }
+    }
 }
 
 inline void GroupByObserver::onNext(const GAny &t)
@@ -165,9 +173,9 @@ inline void GroupByObserver::onNext(const GAny &t)
     try {
         key = mKeySelector(t);
     } catch (...) {
-        onError(ExceptionHelper::fromCurrentException("GroupBy: Key selector failed"));
         if (mUpstream)
             mUpstream->dispose();
+        onError(ExceptionHelper::fromCurrentException("GroupBy: Key selector failed"));
         return;
     }
 
@@ -186,16 +194,19 @@ inline void GroupByObserver::onNext(const GAny &t)
             mGroups.emplace_back(key, groupState);
         }
     } catch (...) {
-        onError(ExceptionHelper::fromCurrentException("GroupBy: Key comparison failed"));
         if (mUpstream) {
             mUpstream->dispose();
         }
+        onError(ExceptionHelper::fromCurrentException("GroupBy: Key comparison failed"));
         return;
     }
 
     if (isNew) {
         const auto groupedObservable = std::make_shared<GroupedObservable>(key, groupState->getObservable());
         mDownstream->onNext(groupedObservable);
+        if (mDone.load(std::memory_order_acquire)) {
+            return;
+        }
     }
 
     GAny value = t;
@@ -203,9 +214,9 @@ inline void GroupByObserver::onNext(const GAny &t)
         try {
             value = mValueSelector(t);
         } catch (...) {
-            onError(ExceptionHelper::fromCurrentException("GroupBy: Value selector failed"));
             if (mUpstream)
                 mUpstream->dispose();
+            onError(ExceptionHelper::fromCurrentException("GroupBy: Value selector failed"));
             return;
         }
     }
@@ -224,6 +235,8 @@ inline void GroupByObserver::onError(const GAnyException &e)
     mGroups.clear();
     if (mDownstream)
         mDownstream->onError(e);
+    mDownstream = nullptr;
+    mUpstream = nullptr;
 }
 
 inline void GroupByObserver::onComplete()
@@ -237,6 +250,29 @@ inline void GroupByObserver::onComplete()
     mGroups.clear();
     if (mDownstream)
         mDownstream->onComplete();
+    mDownstream = nullptr;
+    mUpstream = nullptr;
+}
+
+inline void GroupByObserver::dispose()
+{
+    if (mDone.exchange(true, std::memory_order_acq_rel)) {
+        return;
+    }
+    if (mUpstream) {
+        mUpstream->dispose();
+    }
+    for (const auto &group: mGroups) {
+        group.second->onComplete();
+    }
+    mGroups.clear();
+    mDownstream = nullptr;
+    mUpstream = nullptr;
+}
+
+inline bool GroupByObserver::isDisposed() const
+{
+    return mDone.load(std::memory_order_acquire);
 }
 
 class ObservableGroupBy : public Observable

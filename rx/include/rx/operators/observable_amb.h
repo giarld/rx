@@ -92,6 +92,9 @@ public:
 
     bool tryWin(size_t index)
     {
+        if (mDone.load(std::memory_order_acquire) || mIsDisposed.load(std::memory_order_acquire)) {
+            return false;
+        }
         int expected = -1;
         if (mWinner.compare_exchange_strong(expected, static_cast<int>(index), std::memory_order_acq_rel)) {
             // Won
@@ -99,7 +102,9 @@ public:
             return true;
         }
         // If failed, check if I am the winner (re-entry?)
-        return mWinner.load(std::memory_order_acquire) == static_cast<int>(index);
+        return !mDone.load(std::memory_order_acquire)
+               && !mIsDisposed.load(std::memory_order_acquire)
+               && mWinner.load(std::memory_order_acquire) == static_cast<int>(index);
     }
 
     void onNext(size_t index, const GAny &value)
@@ -113,27 +118,34 @@ public:
 
     void onError(size_t index, const GAnyException &e)
     {
-        if (tryWin(index)) {
-            if (const auto d = mDownstream) {
-                d->onError(e);
-            }
-            // Cleanup self
-            // mDownstream = nullptr; // Don't clear downstream, we might need it? No, standard pattern.
+        if (!tryWin(index) || mDone.exchange(true, std::memory_order_acq_rel)) {
+            return;
+        }
+        const auto downstream = mDownstream;
+        mIsDisposed.store(true, std::memory_order_release);
+        disposeAll((size_t) -1);
+        if (downstream) {
+            downstream->onError(e);
         }
     }
 
     void onComplete(size_t index)
     {
-        if (tryWin(index)) {
-            if (const auto d = mDownstream) {
-                d->onComplete();
-            }
+        if (!tryWin(index) || mDone.exchange(true, std::memory_order_acq_rel)) {
+            return;
+        }
+        const auto downstream = mDownstream;
+        mIsDisposed.store(true, std::memory_order_release);
+        disposeAll((size_t) -1);
+        if (downstream) {
+            downstream->onComplete();
         }
     }
 
     void dispose() override
     {
         if (!mIsDisposed.exchange(true, std::memory_order_acq_rel)) {
+            mDone.store(true, std::memory_order_release);
             disposeAll((size_t) -1);
         }
     }
@@ -172,6 +184,7 @@ private:
     std::vector<DisposablePtr> mDisposables;
     std::atomic<int> mWinner{-1};
     GMutex mLock;
+    std::atomic<bool> mDone{false};
     std::atomic<bool> mIsDisposed{false};
 };
 
